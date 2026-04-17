@@ -6,6 +6,7 @@ import {
   ENERGY_META,
   FOCUS_META,
   getAstrologyEntryForConfig,
+  NAKSHATRA_NAMES,
   NAKSHATRA_TYPE_META,
   PLANET_DAY_META,
   TITHI_TYPE_META,
@@ -395,30 +396,30 @@ function getAstroSegmentsForPreset(
 
 function getAstroLineSizing(scope: 'month' | 'week' | 'day', preset: AstrologyLinePresetId) {
   if (scope === 'month') {
-    return { iconSize: 13, fontSize: 10 };
+    return { iconSize: 14, fontSize: 11 };
   }
 
   if (scope === 'week') {
     if (preset === 'text-icons') {
-      return { iconSize: 15, fontSize: 12 };
+      return { iconSize: 19, fontSize: 14 };
     }
 
     if (preset === 'compact-icons') {
-      return { iconSize: 16, fontSize: 12 };
+      return { iconSize: 20, fontSize: 14 };
     }
 
-    return { iconSize: 18, fontSize: 14 };
+    return { iconSize: 22, fontSize: 16 };
   }
 
   if (preset === 'text-icons') {
-    return { iconSize: 20, fontSize: 15 };
+    return { iconSize: 25, fontSize: 17 };
   }
 
   if (preset === 'compact-icons') {
-    return { iconSize: 20, fontSize: 15 };
+    return { iconSize: 25, fontSize: 17 };
   }
 
-  return { iconSize: 24, fontSize: 18 };
+  return { iconSize: 30, fontSize: 21 };
 }
 
 function drawAstroLegendPage(model: PlannerRenderModel, renderPage: PlannerRenderPage) {
@@ -461,50 +462,127 @@ function drawAstroLegendPage(model: PlannerRenderModel, renderPage: PlannerRende
   ];
 
   const paper = getPaperRect();
-  const area = {
+  const legendRect = {
     x: paper.x + 86,
     y: 300,
     width: paper.width - 182,
-    height: 910,
+    height: 1032,
   };
-  const cards = gridRects(area, 2, 3, 28);
+  renderPage.nodes.push(createRectNode(`${renderPage.page.id}-legend-main-card`, legendRect, {
+    fill: theme.colors.paper,
+    stroke: theme.colors.border,
+    strokeWidth: 2,
+    radius: createRadius(20),
+  }));
+
+  const topArea = {
+    x: legendRect.x + 28,
+    y: legendRect.y + 28,
+    width: legendRect.width - 56,
+    height: 470,
+  };
+  const cards = gridRects(topArea, 2, 3, 22);
   groups.forEach((group, groupIndex) => {
     const rect = cards[groupIndex];
-    renderPage.nodes.push(createRectNode(`${renderPage.page.id}-legend-card-${groupIndex}`, rect, {
-      fill: theme.colors.paper,
-      stroke: theme.colors.border,
-      strokeWidth: 2,
-      radius: createRadius(20),
-    }));
-    renderPage.nodes.push(createTextNode(`${renderPage.page.id}-legend-title-${groupIndex}`, group.title, rect.x + 28, rect.y + 26, 22, 'bold', theme.colors.text, rect.width - 56));
+    const emphasizeGroup = group.title === 'Титхи' || group.title === 'Накшатра';
+    renderPage.nodes.push(createTextNode(
+      `${renderPage.page.id}-legend-title-${groupIndex}`,
+      group.title,
+      rect.x,
+      rect.y,
+      emphasizeGroup ? 34 : 30,
+      'bold',
+      theme.colors.text,
+      rect.width,
+    ));
 
     group.items.forEach((item, itemIndex) => {
-      const rowY = rect.y + 74 + itemIndex * 38;
-      drawAstroInline(renderPage.nodes, `${renderPage.page.id}-legend-${groupIndex}-${itemIndex}`, item.segments, rect.x + 28, rowY, theme.colors.text, 24, 16);
-      renderPage.nodes.push(createTextNode(`${renderPage.page.id}-legend-label-${groupIndex}-${itemIndex}`, item.text, rect.x + 76, rowY + 3, 16, 'body', theme.colors.muted, rect.width - 100));
+      const rowY = rect.y + 42 + itemIndex * 34;
+      drawAstroInline(renderPage.nodes, `${renderPage.page.id}-legend-${groupIndex}-${itemIndex}`, item.segments, rect.x, rowY, theme.colors.text, 24, 18);
+      renderPage.nodes.push(createTextNode(
+        `${renderPage.page.id}-legend-label-${groupIndex}-${itemIndex}`,
+        item.text,
+        rect.x + 54,
+        rowY,
+        emphasizeGroup ? 24 : 22,
+        'body',
+        theme.colors.muted,
+        rect.width - 60,
+        'left',
+        20,
+      ));
     });
   });
 
-  renderPage.nodes.push(createTextNode(
-    `${renderPage.page.id}-legend-example-title`,
-    'Пример daily-строки',
-    area.x,
-    area.y + area.height + 48,
-    22,
-    'bold',
-    theme.colors.text,
-    420,
-  ));
-  renderPage.nodes.push(createTextNode(
-    `${renderPage.page.id}-legend-example-copy`,
-    'Луна · номер титхи и тип · номер накшатры и тип · планета · энергия · фокус. На месяцах и неделях остаются только Луна, планета и фокус.',
-    area.x,
-    area.y + area.height + 84,
-    18,
-    'body',
-    theme.colors.muted,
-    area.width,
-  ));
+  const dividerY = legendRect.y + 540;
+  renderPage.nodes.push({
+    id: `${renderPage.page.id}-legend-divider`,
+    kind: 'line',
+    x1: legendRect.x + 28,
+    y1: dividerY,
+    x2: legendRect.x + legendRect.width - 28,
+    y2: dividerY,
+    stroke: theme.colors.border,
+    strokeWidth: 2,
+    opacity: 0.55,
+  });
+
+  const detailSections = [
+    {
+      id: 'tithi-names',
+      title: 'Титхи 1-15',
+      items: TITHI_NAMES.map((name, index) => `${index + 1}. ${name}`),
+      x: legendRect.x + 28,
+      y: dividerY + 34,
+      width: (legendRect.width - 84) * 0.42,
+      columns: 2,
+    },
+    {
+      id: 'nakshatra-names',
+      title: 'Накшатры 1-27',
+      items: NAKSHATRA_NAMES.map((name, index) => `${index + 1}. ${name}`),
+      x: legendRect.x + 28 + (legendRect.width - 84) * 0.42 + 28,
+      y: dividerY + 34,
+      width: (legendRect.width - 84) * 0.58,
+      columns: 2,
+    },
+  ];
+
+  detailSections.forEach((section) => {
+    const columnGap = 18;
+    const contentY = section.y + 36;
+    const rowHeight = 24;
+    const rows = Math.max(1, Math.ceil(section.items.length / section.columns));
+    const columnWidth = (section.width - columnGap * (section.columns - 1)) / section.columns;
+
+    renderPage.nodes.push(createTextNode(
+      `${renderPage.page.id}-${section.id}-title`,
+      section.title,
+      section.x,
+      section.y,
+      30,
+      'bold',
+      theme.colors.text,
+      section.width,
+    ));
+
+    section.items.forEach((item, index) => {
+      const column = Math.floor(index / rows);
+      const row = index % rows;
+      renderPage.nodes.push(createTextNode(
+        `${renderPage.page.id}-${section.id}-item-${index}`,
+        item,
+        section.x + column * (columnWidth + columnGap),
+        contentY + row * rowHeight,
+        24,
+        'body',
+        theme.colors.muted,
+        columnWidth,
+        'left',
+        rowHeight,
+      ));
+    });
+  });
 }
 
 function buildIndexPage(model: PlannerRenderModel, renderPage: PlannerRenderPage, links: PlannerLinkDefinition[]) {
@@ -794,7 +872,7 @@ function buildWeekPage(model: PlannerRenderModel, renderPage: PlannerRenderPage,
         'right',
       );
     }
-    const writingLinesTop = weekPreset === 'text-icons' ? area.y + 118 : area.y + 92;
+    const writingLinesTop = weekPreset === 'text-icons' ? area.y + 134 : area.y + 108;
     drawWritingLines(
       nodes,
       { x: area.x, y: writingLinesTop, width: area.width, height: area.height - (writingLinesTop - area.y) - 14 },

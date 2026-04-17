@@ -210,7 +210,9 @@ export async function exportPlannerPdf(config: PlannerConfig, target?: PdfExport
     throw new Error(validation.errors.join(' '));
   }
 
-  const bytes = await buildPlannerPdfBytes(config);
+  // Capture the save target while we are still inside the original user gesture.
+  // Building the PDF can take long enough for the browser to reject showSaveFilePicker.
   const exportTarget = target ?? await preparePdfExportTarget(config);
+  const bytes = await buildPlannerPdfBytes(config);
   return savePdfBytes(exportTarget, bytes);
 }
