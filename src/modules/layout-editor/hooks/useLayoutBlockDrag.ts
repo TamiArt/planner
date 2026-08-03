@@ -3,6 +3,7 @@ import type { LayoutBlock, PageLayout } from '../../../shared/layout';
 
 interface DragState {
   blockId: string;
+  block: LayoutBlock;
   pointerId: number;
   startClientX: number;
   startClientY: number;
@@ -19,17 +20,21 @@ export function useLayoutBlockDrag({
   enabled = true,
   onSelect,
   onCommit,
+  constrainPosition = (_block, position) => position,
 }: {
   layout: PageLayout;
   surfaceRef: RefObject<HTMLDivElement>;
   enabled?: boolean;
   onSelect: (blockId: string) => void;
   onCommit: (blockId: string, position: { x: number; y: number }) => void;
+  constrainPosition?: (block: LayoutBlock, position: { x: number; y: number }) => { x: number; y: number };
 }) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const commitRef = useRef(onCommit);
   commitRef.current = onCommit;
+  const constrainPositionRef = useRef(constrainPosition);
+  constrainPositionRef.current = constrainPosition;
 
   useEffect(() => {
     if (!drag) {
@@ -54,10 +59,13 @@ export function useLayoutBlockDrag({
       const deltaX = ((event.clientX - activeDrag.startClientX) / rect.width) * layout.width;
       const deltaY = ((event.clientY - activeDrag.startClientY) / rect.height) * layout.height;
       const moved = activeDrag.moved || Math.hypot(event.clientX - activeDrag.startClientX, event.clientY - activeDrag.startClientY) >= 4;
-      const nextDrag = {
-        ...activeDrag,
+      const nextPosition = constrainPositionRef.current(activeDrag.block, {
         x: activeDrag.startX + deltaX,
         y: activeDrag.startY + deltaY,
+      });
+      const nextDrag = {
+        ...activeDrag,
+        ...nextPosition,
         moved,
       };
       dragRef.current = nextDrag;
@@ -109,6 +117,7 @@ export function useLayoutBlockDrag({
     event.currentTarget.setPointerCapture(event.pointerId);
     const nextDrag = {
       blockId: block.id,
+      block,
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,

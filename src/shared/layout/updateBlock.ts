@@ -41,6 +41,29 @@ function clampBlockToCanvas(block: LayoutBlock, layout: PageLayout): LayoutBlock
   };
 }
 
+export function constrainBlockPosition(
+  layout: PageLayout,
+  block: LayoutBlock,
+  position: { x: number; y: number },
+  options?: { snapToGrid?: boolean },
+) {
+  const shouldSnapToGrid = options?.snapToGrid ?? true;
+  const positionedBlock = clampBlockToCanvas({
+    ...block,
+    x: shouldSnapToGrid ? snapToGrid(position.x, layout.grid) : Math.round(position.x),
+    y: shouldSnapToGrid ? snapToGrid(position.y, layout.grid) : Math.round(position.y),
+  }, layout);
+
+  if (shouldSnapToGrid && layout.grid?.snap && layout.grid.size > 1) {
+    return {
+      x: Math.floor(positionedBlock.x / layout.grid.size) * layout.grid.size,
+      y: Math.floor(positionedBlock.y / layout.grid.size) * layout.grid.size,
+    };
+  }
+
+  return { x: positionedBlock.x, y: positionedBlock.y };
+}
+
 function blocksOverlap(a: LayoutBlock, b: LayoutBlock) {
   return a.x < b.x + b.width
     && a.x + a.width > b.x
@@ -108,23 +131,25 @@ export function updateBlockPosition(
   layout: PageLayout,
   blockId: string,
   position: { x: number; y: number },
-  options?: { snapToGrid?: boolean },
+  options?: { snapToGrid?: boolean; resolveCollisions?: boolean },
 ) {
-  const shouldSnapToGrid = options?.snapToGrid ?? true;
+  const targetBlock = layout.blocks.find((block) => block.id === blockId);
+  if (!targetBlock) {
+    return layout;
+  }
+
+  const constrainedPosition = constrainBlockPosition(layout, targetBlock, position, options);
+  const nextLayout = {
+    ...layout,
+    blocks: layout.blocks.map((block) => (
+      block.id === blockId
+        ? { ...block, ...constrainedPosition }
+        : block
+    )),
+  };
 
   return touchLayout(
-    normalizeLayoutGeometry({
-      ...layout,
-      blocks: layout.blocks.map((block) => (
-        block.id === blockId
-          ? {
-              ...block,
-              x: shouldSnapToGrid ? snapToGrid(position.x, layout.grid) : Math.round(position.x),
-              y: shouldSnapToGrid ? snapToGrid(position.y, layout.grid) : Math.round(position.y),
-            }
-          : block
-      )),
-    }),
+    options?.resolveCollisions === false ? nextLayout : normalizeLayoutGeometry(nextLayout),
   );
 }
 

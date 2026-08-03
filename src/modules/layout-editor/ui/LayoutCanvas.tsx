@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { useRef, type CSSProperties } from 'react';
 import type { PlannerModulePanelProps } from '../../../core/registry/plannerModule';
-import { updateBlockPosition, type LayoutPageTarget } from '../../../shared/layout';
+import { constrainBlockPosition, updateBlockPosition, type LayoutPageTarget } from '../../../shared/layout';
 import { useLayoutBlockDrag } from '../hooks/useLayoutBlockDrag';
 import { getBlockTypeLabel } from '../model/blockCatalog';
 import { normalizePlannerLayouts } from '../model/normalizeLayouts';
@@ -29,11 +29,12 @@ export function LayoutCanvas({
     surfaceRef,
     enabled: canDrag,
     onSelect: onSelectBlock,
+    constrainPosition: (block, position) => constrainBlockPosition(layout, block, position),
     onCommit: (blockId, position) => {
       onConfigChange({
         layouts: {
           ...config.layouts,
-          [layoutTarget]: updateBlockPosition(layout, blockId, position),
+          [layoutTarget]: updateBlockPosition(layout, blockId, position, { resolveCollisions: false }),
         },
       });
     },
