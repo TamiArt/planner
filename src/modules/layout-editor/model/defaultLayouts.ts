@@ -42,7 +42,8 @@ export function createDefaultPlannerLayouts(): Record<LayoutPageTarget, PageLayo
       createBlock({ type: 'group', name: 'Колонка дня 1', x: 120, y: 320, width: 520, height: 840 }),
       createBlock({ type: 'group', name: 'Колонка дня 2', x: 680, y: 320, width: 520, height: 840 }),
       createBlock({ type: 'group', name: 'Колонка дня 3', x: 1240, y: 320, width: 520, height: 840 }),
-      createBlock({ type: 'note-area', name: 'Фокус недели', x: 120, y: 1200, width: 1640, height: 180 }),
+      createBlock({ type: 'note-area', name: 'Фокус недели', x: 120, y: 1200, width: 1220, height: 180 }),
+      createBlock({ type: 'note-area', name: 'Благодарность', x: 1380, y: 1200, width: 380, height: 180 }),
     ]),
     'week-right': createLayout('week-right', 'Макет недели справа', [
       createBlock({ type: 'header', name: 'Заголовок', x: 120, y: 108, width: 1680, height: 150 }),

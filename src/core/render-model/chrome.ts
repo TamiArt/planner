@@ -4,6 +4,69 @@ import { createRadius, createRectNode, createTextNode } from './helpers';
 import { getFirstPageBySection, getSectionLabel } from './selectors';
 import { addLink } from './helpers';
 
+const HOME_RECT = { x: 104, y: 52, width: 232, height: 68 } as const;
+const TOP_TAB_Y = 52;
+const TOP_TAB_HEIGHT = 56;
+const TOP_TAB_GAP = 8;
+const TOP_TAB_START_X = HOME_RECT.x + HOME_RECT.width + 20;
+const TOP_TAB_AVAILABLE_WIDTH = PAGE_WIDTH - TOP_TAB_START_X - 88;
+
+function getTabBaseWidth(tab: PlannerRenderModel['plan']['tabs'][number]) {
+  if (tab.kind === 'month') {
+    return 68;
+  }
+
+  return Math.max(88, Math.min(120, 36 + tab.label.length * 10));
+}
+
+function fitTopTabWidths(tabs: PlannerRenderModel['plan']['tabs']) {
+  const baseWidths = tabs.map((tab) => getTabBaseWidth(tab));
+  const totalWidth = baseWidths.reduce((sum, width) => sum + width, 0) + Math.max(0, tabs.length - 1) * TOP_TAB_GAP;
+
+  if (totalWidth <= TOP_TAB_AVAILABLE_WIDTH) {
+    return baseWidths;
+  }
+
+  const minWidths = tabs.map((tab) => (tab.kind === 'month' ? 56 : 76));
+  const shrinkable = baseWidths.map((width, index) => width - minWidths[index]);
+  const totalShrinkable = shrinkable.reduce((sum, value) => sum + Math.max(0, value), 0);
+
+  if (totalShrinkable <= 0) {
+    return minWidths;
+  }
+
+  const overflow = totalWidth - TOP_TAB_AVAILABLE_WIDTH;
+  return baseWidths.map((width, index) => {
+    const share = Math.max(0, shrinkable[index]) / totalShrinkable;
+    return Math.max(minWidths[index], Math.round(width - overflow * share));
+  });
+}
+
+function getChromeTabRects(model: PlannerRenderModel) {
+  if (model.config.tabPosition === 'top') {
+    const widths = fitTopTabWidths(model.plan.tabs);
+    let x = TOP_TAB_START_X;
+
+    return model.plan.tabs.map((_, index) => {
+      const rect = {
+        x,
+        y: TOP_TAB_Y,
+        width: widths[index],
+        height: TOP_TAB_HEIGHT,
+      };
+      x += widths[index] + TOP_TAB_GAP;
+      return rect;
+    });
+  }
+
+  return model.plan.tabs.map((_, index) => ({
+    x: TAB_X,
+    y: TAB_TOP + index * (TAB_HEIGHT + TAB_GAP),
+    width: TAB_WIDTH,
+    height: TAB_HEIGHT,
+  }));
+}
+
 export function buildCoverNodes(model: PlannerRenderModel, page: PlannerRenderPage['page']) {
   const { config, theme } = model;
   const nodes: PlannerRenderNode[] = [
@@ -134,6 +197,7 @@ export function buildBackgroundNodes(model: PlannerRenderModel, page: PlannerRen
 export function buildHeaderNodes(model: PlannerRenderModel, renderPage: PlannerRenderPage) {
   const { theme, config, plan } = model;
   const { page, layout } = renderPage;
+  const tabRects = getChromeTabRects(model);
   const headerBlock = layout.blocks.find((block) => block.type === 'header');
   if (!headerBlock) {
     return [] as PlannerRenderNode[];
@@ -170,22 +234,20 @@ export function buildHeaderNodes(model: PlannerRenderModel, renderPage: PlannerR
     createTextNode(`${page.id}-header-page-number`, `${page.pageNumber} / ${plan.pages.length}`, inner.x + inner.width - 180, inner.y + 16, 20, 'bold', theme.colors.text, 180, 'right'),
   ];
 
-  const homeRect = { x: 104, y: 52, width: 232, height: 68 };
-  nodes.push(createRectNode(`${page.id}-home`, homeRect, {
+  nodes.push(createRectNode(`${page.id}-home`, HOME_RECT, {
     fill: page.kind === 'index' ? theme.colors.accent : theme.colors.paper,
     stroke: theme.colors.border,
     strokeWidth: 2,
     radius: createRadius(18),
   }));
-  nodes.push(createTextNode(`${page.id}-home-text`, 'Home', homeRect.x + 44, homeRect.y + 18, 24, 'bold', page.kind === 'index' ? theme.colors.tabText : theme.colors.text));
+  nodes.push(createTextNode(`${page.id}-home-text`, 'Home', HOME_RECT.x + 44, HOME_RECT.y + 18, 24, 'bold', page.kind === 'index' ? theme.colors.tabText : theme.colors.text));
 
   plan.tabs.forEach((tab, index) => {
-    const rect = {
-      x: TAB_X,
-      y: TAB_TOP + index * (TAB_HEIGHT + TAB_GAP),
-      width: TAB_WIDTH,
-      height: TAB_HEIGHT,
-    };
+    const rect = tabRects[index];
+    if (!rect) {
+      return;
+    }
+
     const active = page.monthIndex === Number(tab.id.replace('tab-month-', '')) - 1
       || (tab.id === 'tab-notes' && page.sectionType === 'notes')
       || (tab.id === 'tab-checklist' && page.sectionType === 'checklist')
@@ -198,6 +260,22 @@ export function buildHeaderNodes(model: PlannerRenderModel, renderPage: PlannerR
       strokeWidth: 2,
       radius: createRadius(16),
     }));
+
+    if (config.tabPosition === 'top') {
+      nodes.push(createTextNode(
+        `${page.id}-tab-${tab.id}-text`,
+        tab.label,
+        rect.x + rect.width / 2,
+        rect.y + 18,
+        16,
+        'bold',
+        active ? theme.colors.tabText : theme.colors.text,
+        rect.width - 16,
+        'center',
+      ));
+      return;
+    }
+
     nodes.push(createTextNode(`${page.id}-tab-${tab.id}-text`, tab.label, rect.x + 26, rect.y + 18, 18, 'bold', active ? theme.colors.tabText : theme.colors.text, rect.width - 36));
   });
 
@@ -206,6 +284,7 @@ export function buildHeaderNodes(model: PlannerRenderModel, renderPage: PlannerR
 
 export function buildChromeLinks(model: PlannerRenderModel) {
   const homeTargetId = getFirstPageBySection(model.plan, 'index')?.id;
+  const tabRects = getChromeTabRects(model);
 
   model.pages.forEach((renderPage) => {
     if (renderPage.page.sectionType === 'cover') {
@@ -213,16 +292,16 @@ export function buildChromeLinks(model: PlannerRenderModel) {
     }
 
     if (homeTargetId && renderPage.page.id !== homeTargetId) {
-      addLink(model.links, renderPage.page.id, homeTargetId, { x: 104, y: 52, width: 232, height: 68 });
+      addLink(model.links, renderPage.page.id, homeTargetId, HOME_RECT);
     }
 
     model.plan.tabs.forEach((tab, index) => {
-      addLink(model.links, renderPage.page.id, tab.targetPageId, {
-        x: TAB_X,
-        y: TAB_TOP + index * (TAB_HEIGHT + TAB_GAP),
-        width: TAB_WIDTH,
-        height: TAB_HEIGHT,
-      });
+      const rect = tabRects[index];
+      if (!rect) {
+        return;
+      }
+
+      addLink(model.links, renderPage.page.id, tab.targetPageId, rect);
     });
   });
 }

@@ -19,6 +19,7 @@ import {
 } from '../stickers/readySheetDimensions';
 import { normalizePlannerLayouts } from '../../modules/layout-editor/model/normalizeLayouts';
 import { CAPITAL_CITY_OPTIONS, getCapitalCityById } from '../astrology/capitalCities';
+import { resolveAstrologyLocation } from '../astrology/astrologyConfig';
 
 const AUTO_STICKER_MAX_SIZE_BYTES = 1_000_000;
 
@@ -117,10 +118,22 @@ const astrologyDisplaySchema = z.object({
   lineDensity: z.enum(['compact', 'standard', 'wide']),
 });
 
+const astrologyCustomCitySchema = z.object({
+  name: z.string().min(1),
+  country: z.string().optional(),
+  timezone: z.string().min(1),
+  latitude: z.string().min(1),
+  longitude: z.string().min(1),
+});
+
 const astrologyDayEntrySchema = z.object({
   iso: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   cityId: z.string().min(1),
+  locationMode: z.enum(['preset', 'custom']).optional(),
+  locationName: z.string().min(1).optional(),
   timezone: z.string().min(1),
+  latitude: z.number().finite().optional(),
+  longitude: z.number().finite().optional(),
   sunriseInstant: z.string().min(1),
   tithiNumber: z.number().int().min(1).max(30),
   tithiPakshaNumber: z.number().int().min(1).max(15),
@@ -137,7 +150,11 @@ const astrologyDataSchema = z.object({
   source: z.literal('astronomy-engine'),
   year: z.number().int().min(2020).max(2100),
   cityId: z.string().min(1),
+  locationMode: z.enum(['preset', 'custom']).optional(),
+  locationName: z.string().min(1).optional(),
   timezone: z.string().min(1),
+  latitude: z.number().finite().optional(),
+  longitude: z.number().finite().optional(),
   ayanamsa: z.literal('lahiri'),
   calculationTime: z.literal('sunrise'),
   calculatedAt: z.string().min(1),
@@ -145,7 +162,9 @@ const astrologyDataSchema = z.object({
 });
 
 const astrologyConfigSchema = z.object({
+  cityMode: z.enum(['preset', 'custom']).optional(),
   cityId: z.string().min(1),
+  customCity: astrologyCustomCitySchema.optional(),
   ayanamsa: z.literal('lahiri'),
   calculationTime: z.literal('sunrise').optional(),
   iconStyle: z.literal('fluent-flat').optional(),
@@ -210,6 +229,7 @@ export const plannerConfigSchema = z
     includeIndex: z.boolean().optional(),
     includeStickerSheets: z.boolean().optional(),
     tabs: z.array(tabSchema).optional(),
+    tabPosition: z.enum(['right', 'top']).optional(),
     weekStartsOn: z.literal('monday'),
   })
   .superRefine((config, context) => {
@@ -283,6 +303,7 @@ function normalizeValidatedConfig(config: z.infer<typeof plannerConfigSchema>) {
     includeStickerSheets: config.includeStickerSheets ?? true,
     backgroundOpacity: normalizeBackgroundOpacity(config.backgroundOpacity),
     tabs: config.tabs ?? [],
+    tabPosition: config.tabPosition ?? 'right',
     astrology: config.astrology,
     moonPhases: config.moonPhases,
   } as PlannerConfig);
@@ -334,12 +355,18 @@ export function validatePlannerConfig(config: PlannerConfig): PlannerValidationR
     warnings.push('Загруженный фон получился довольно тяжелым. При необходимости используйте фото меньшего размера.');
   }
 
-  if (!getCapitalCityById(validConfig.astrology.cityId)) {
-    errors.push('Для астрологических настроек выберите город из списка столиц.');
+  if (validConfig.astrology.cityMode === 'preset') {
+    if (!getCapitalCityById(validConfig.astrology.cityId)) {
+      errors.push('Для астрологических настроек выберите город из списка.');
+    }
+
+    if (CAPITAL_CITY_OPTIONS.length === 0) {
+      errors.push('Список городов для астрологических настроек пуст.');
+    }
   }
 
-  if (CAPITAL_CITY_OPTIONS.length === 0) {
-    errors.push('Список столиц для астрологических настроек пуст.');
+  if (validConfig.astrology.cityMode === 'custom' && !resolveAstrologyLocation(validConfig.astrology)) {
+    errors.push('Для своего города заполните название, IANA-часовой пояс и корректные координаты.');
   }
 
   if (validConfig.moonPhases.enabled) {
@@ -353,7 +380,9 @@ export function validatePlannerConfig(config: PlannerConfig): PlannerValidationR
   }
 
   if (validConfig.astrology.data) {
-    if (validConfig.astrology.data.cityId !== validConfig.astrology.cityId) {
+    const currentLocation = resolveAstrologyLocation(validConfig.astrology);
+
+    if (currentLocation && validConfig.astrology.data.cityId !== currentLocation.cityId) {
       warnings.push('Астрологические данные рассчитаны для другого города. Пересчитайте год во вкладке “Астрология”.');
     }
 

@@ -10,7 +10,7 @@ import type {
   PlannerAstrologyDayEntry,
   PlannerConfig,
 } from '../../types/planner';
-import { getCapitalCityById } from './capitalCities';
+import { resolveAstrologyLocation } from './astrologyConfig';
 
 const NAKSHATRA_SPAN_DEGREES = 360 / 27;
 
@@ -318,12 +318,12 @@ function deriveFocus(
 }
 
 export function calculateAstrologyDayEntry(iso: string, config: PlannerAstrologyConfig): PlannerAstrologyDayEntry | undefined {
-  const city = getCapitalCityById(config.cityId);
-  if (!city) {
+  const location = resolveAstrologyLocation(config);
+  if (!location) {
     return undefined;
   }
 
-  const sunrise = findLocalSunrise(iso, city.latitude, city.longitude, city.timezone);
+  const sunrise = findLocalSunrise(iso, location.latitude, location.longitude, location.timezone);
   const moonAngle = normalizeDegrees(MoonPhase(sunrise));
   const tithiNumber = Math.min(30, Math.floor(moonAngle / 12) + 1);
   const tithiPakshaNumber = ((tithiNumber - 1) % 15) + 1;
@@ -337,8 +337,12 @@ export function calculateAstrologyDayEntry(iso: string, config: PlannerAstrology
 
   return {
     iso,
-    cityId: city.id,
-    timezone: city.timezone,
+    cityId: location.cityId,
+    locationMode: location.mode,
+    locationName: location.name,
+    timezone: location.timezone,
+    latitude: location.latitude,
+    longitude: location.longitude,
     sunriseInstant: sunrise.toISOString(),
     tithiNumber,
     tithiPakshaNumber,
@@ -353,16 +357,20 @@ export function calculateAstrologyDayEntry(iso: string, config: PlannerAstrology
 }
 
 export function calculateAstrologyDataForYear(year: number, config: PlannerAstrologyConfig): PlannerAstrologyDataConfig {
-  const city = getCapitalCityById(config.cityId);
-  if (!city) {
-    throw new Error('Выберите город из списка столиц для расчёта астрологии.');
+  const location = resolveAstrologyLocation(config);
+  if (!location) {
+    throw new Error('Укажите корректный город, часовой пояс и координаты для расчёта астрологии.');
   }
 
   return {
     source: 'astronomy-engine',
     year,
-    cityId: city.id,
-    timezone: city.timezone,
+    cityId: location.cityId,
+    locationMode: location.mode,
+    locationName: location.name,
+    timezone: location.timezone,
+    latitude: location.latitude,
+    longitude: location.longitude,
     ayanamsa: 'lahiri',
     calculationTime: 'sunrise',
     calculatedAt: new Date().toISOString(),
@@ -375,13 +383,15 @@ export function calculateAstrologyDataForYear(year: number, config: PlannerAstro
 export function hasAstrologyDataForConfig(config: PlannerConfig) {
   const year = config.year;
   const data = config.astrology.data;
+  const location = resolveAstrologyLocation(config.astrology);
 
   return Boolean(
     config.mode === 'dated'
       && year
+      && location
       && data
       && data.year === year
-      && data.cityId === config.astrology.cityId
+      && data.cityId === location.cityId
       && data.ayanamsa === 'lahiri'
       && data.calculationTime === 'sunrise'
       && data.entries.length >= 365,

@@ -38,6 +38,7 @@ import type {
   AstrologyLineDensity,
   AstrologyLinePresetId,
   PlannerAstrologyConfig,
+  PlannerAstrologyCustomCity,
   PlannerAstrologyLayers,
   PlannerConfig,
 } from '../types/planner';
@@ -286,6 +287,46 @@ export function AstrologyPdfEditorPage() {
     setField('astrology', nextAstrology);
   }
 
+  function handleAstrologyCityModeChange(cityMode: PlannerAstrologyConfig['cityMode']) {
+    if (cityMode === 'custom') {
+      const nextCustomCity: PlannerAstrologyCustomCity = astrology.cityMode === 'custom' && astrology.customCity
+        ? astrology.customCity
+        : {
+            name: selectedAstrologyCity.name,
+            country: selectedAstrologyCity.country,
+            timezone: selectedAstrologyCity.timezone,
+            latitude: selectedAstrologyCity.latitudeText,
+            longitude: selectedAstrologyCity.longitudeText,
+          };
+
+      updateAstrologyConfig({
+        cityMode: 'custom',
+        customCity: nextCustomCity,
+      });
+      return;
+    }
+
+    updateAstrologyConfig({ cityMode: 'preset' });
+  }
+
+  function handleAstrologyCustomCityChange<K extends keyof PlannerAstrologyCustomCity>(
+    field: K,
+    value: PlannerAstrologyCustomCity[K],
+  ) {
+    updateAstrologyConfig({
+      customCity: {
+        ...(astrology.customCity ?? {
+          name: selectedAstrologyCity.name,
+          country: selectedAstrologyCity.country,
+          timezone: selectedAstrologyCity.timezone,
+          latitude: selectedAstrologyCity.latitudeText,
+          longitude: selectedAstrologyCity.longitudeText,
+        }),
+        [field]: value,
+      },
+    });
+  }
+
   function updateAstrologyDisplay<K extends keyof PlannerAstrologyConfig['display']>(
     field: K,
     value: PlannerAstrologyConfig['display'][K],
@@ -340,7 +381,7 @@ export function AstrologyPdfEditorPage() {
 
   function handleCalculateAstrology() {
     setIsCalculatingAstrology(true);
-    setFeedback('Считаем астрологию на локальный восход выбранной столицы...');
+    setFeedback('Считаем астрологию на локальный восход выбранного города...');
 
     try {
       const baseAstrology = normalizeAstrologyConfig(astrology);
@@ -554,6 +595,23 @@ export function AstrologyPdfEditorPage() {
               Swiss Ephemeris не встраивается в проект и остается только внешним ориентиром для сверки методики.
             </p>
 
+            <div className="workflow-mode-toggle workflow-panel__space">
+              <button
+                type="button"
+                onClick={() => handleAstrologyCityModeChange('preset')}
+                className={astrology.cityMode === 'preset' ? 'workflow-mode-toggle__button workflow-mode-toggle__button--active' : 'workflow-mode-toggle__button'}
+              >
+                Из списка
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAstrologyCityModeChange('custom')}
+                className={astrology.cityMode === 'custom' ? 'workflow-mode-toggle__button workflow-mode-toggle__button--active' : 'workflow-mode-toggle__button'}
+              >
+                Свой город
+              </button>
+            </div>
+
             <div className="form-grid workflow-panel__space">
               <label className="field">
                 <span className="field__label">Год планера</span>
@@ -567,25 +625,82 @@ export function AstrologyPdfEditorPage() {
                 />
               </label>
 
-              <label className="field">
-                <span className="field__label">Город пользователя</span>
-                <select
-                  value={astrology.cityId}
-                  onChange={(event) => updateAstrologyConfig({ cityId: event.target.value })}
-                  className="select"
-                >
-                  {CAPITAL_CITY_OPTIONS.map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.name} · {city.country}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {astrology.cityMode === 'preset' ? (
+                <label className="field">
+                  <span className="field__label">Город пользователя</span>
+                  <select
+                    value={astrology.cityId}
+                    onChange={(event) => updateAstrologyConfig({ cityId: event.target.value })}
+                    className="select"
+                  >
+                    {CAPITAL_CITY_OPTIONS.map((city) => (
+                      <option key={city.id} value={city.id}>
+                        {city.name} · {city.country}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <>
+                  <label className="field">
+                    <span className="field__label">Название города</span>
+                    <input
+                      value={astrology.customCity?.name ?? ''}
+                      onChange={(event) => handleAstrologyCustomCityChange('name', event.target.value)}
+                      className="input"
+                      placeholder="Например, Казань"
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="field__label">Страна или регион</span>
+                    <input
+                      value={astrology.customCity?.country ?? ''}
+                      onChange={(event) => handleAstrologyCustomCityChange('country', event.target.value)}
+                      className="input"
+                      placeholder="Россия"
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="field__label">Часовой пояс</span>
+                    <input
+                      value={astrology.customCity?.timezone ?? ''}
+                      onChange={(event) => handleAstrologyCustomCityChange('timezone', event.target.value)}
+                      className="input"
+                      placeholder="Europe/Moscow"
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="field__label">Широта</span>
+                    <input
+                      value={astrology.customCity?.latitude ?? ''}
+                      onChange={(event) => handleAstrologyCustomCityChange('latitude', event.target.value)}
+                      className="input"
+                      placeholder="55.7558"
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span className="field__label">Долгота</span>
+                    <input
+                      value={astrology.customCity?.longitude ?? ''}
+                      onChange={(event) => handleAstrologyCustomCityChange('longitude', event.target.value)}
+                      className="input"
+                      placeholder="37.6173"
+                    />
+                  </label>
+                </>
+              )}
             </div>
 
             <div className="summary-grid">
               <InfoCard label="Статус" value={dataReady ? 'готово' : 'нужен расчёт'} />
-              <InfoCard label="Столица" value={`${selectedAstrologyCity.name} · ${selectedAstrologyCity.country}`} />
+              <InfoCard label="Режим города" value={astrology.cityMode === 'custom' ? 'свой город' : 'из списка'} />
+              <InfoCard label="Город" value={`${selectedAstrologyCity.name} · ${selectedAstrologyCity.country}`} />
+              <InfoCard label="Часовой пояс" value={selectedAstrologyCity.timezone} />
+              <InfoCard label="Координаты" value={`${selectedAstrologyCity.latitudeText}, ${selectedAstrologyCity.longitudeText}`} />
               <InfoCard label="Аянамша" value={JYOTISH_AYANAMSA_LABEL} />
               <InfoCard label="Рассчитано" value={astrologyCalculatedAtLabel} />
               <InfoCard label="Источник" value={ASTROLOGY_SOURCE_LABEL} />

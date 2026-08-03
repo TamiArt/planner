@@ -122,6 +122,7 @@ function buildFileStem(config: PlannerConfig) {
 }
 
 function buildUsageGuide(config: PlannerConfig) {
+  const tabPositionLabel = config.tabPosition === 'top' ? 'сверху' : 'справа';
   const backgroundLabel = config.customBackground?.id === config.backgroundId
     ? config.customBackground.type === 'color'
       ? `${config.customBackground.name} (custom color)`
@@ -150,7 +151,7 @@ function buildUsageGuide(config: PlannerConfig) {
     '',
     'Как использовать:',
     '1. Откройте PDF в выбранном приложении.',
-    '2. Перемещайтесь по документу через вкладки справа и через Index.',
+    `2. Перемещайтесь по документу через вкладки ${tabPositionLabel} и через Index.`,
     '3. Пишите поверх страниц стилусом или клавиатурой.',
     '4. Sticker sheets разделены на 3 категории: функциональные, декоративные, эмодзи / иконки.',
     '5. Sticker sheets служат встроенной визуальной библиотекой. Копирование и вставка элементов зависит от возможностей вашего PDF-приложения.',
@@ -160,6 +161,7 @@ function buildUsageGuide(config: PlannerConfig) {
     `Тема: ${config.themeId}`,
     `Фон: ${backgroundLabel}`,
     `Прозрачность фона: ${Math.round(config.backgroundOpacity * 100)}%`,
+    `Положение вкладок: ${tabPositionLabel}`,
     `Обложка PNG: ${coverLabel}`,
     `Фон листов PNG: ${pageBackgroundLabel}`,
   ].join('\n');

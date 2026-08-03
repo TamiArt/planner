@@ -810,9 +810,31 @@ function buildWeekPage(model: PlannerRenderModel, renderPage: PlannerRenderPage,
   const { theme, config } = model;
   const { page, layout, nodes } = renderPage;
   const dayBlocks = getBlocks(layout, 'group');
-  const footerBlock = getBlock(layout, 'note-area');
+  const noteBlocks = getBlocks(layout, 'note-area').slice().sort((left, right) => left.x - right.x);
+  let footerBlock = noteBlocks[0];
+  let gratitudeBlock = page.kind === 'week-left' ? noteBlocks[1] : undefined;
   const descriptor = getWeekCalendar(config.year ?? new Date().getFullYear(), page.weekIndex ?? 0);
   const days = page.kind === 'week-left' ? descriptor.days.slice(0, 3) : descriptor.days.slice(3);
+
+  if (page.kind === 'week-left' && footerBlock && !gratitudeBlock && footerBlock.width >= 760) {
+    const gratitudeWidth = Math.min(380, Math.max(300, Math.round(footerBlock.width * 0.23)));
+    const gap = Math.min(40, Math.max(24, Math.round(footerBlock.width * 0.024)));
+    const focusWidth = footerBlock.width - gratitudeWidth - gap;
+
+    if (focusWidth >= 360) {
+      gratitudeBlock = {
+        ...footerBlock,
+        id: `${footerBlock.id}-gratitude-fallback`,
+        name: 'Благодарность',
+        x: footerBlock.x + focusWidth + gap,
+        width: gratitudeWidth,
+      };
+      footerBlock = {
+        ...footerBlock,
+        width: focusWidth,
+      };
+    }
+  }
 
   dayBlocks.forEach((block, index) => {
     nodes.push(blockSurface(block, `${page.id}-day-block-${index}`));
@@ -889,7 +911,19 @@ function buildWeekPage(model: PlannerRenderModel, renderPage: PlannerRenderPage,
     drawWritingLines(nodes, { x: area.x, y: area.y + 40, width: area.width, height: area.height - 56 }, 3, theme.colors.border, `${page.id}-footer-lines`);
   }
 
-  const navAreaY = (footerBlock?.y ?? 1280) + (footerBlock?.height ?? 0) + 28;
+  if (gratitudeBlock) {
+    nodes.push(blockSurface(gratitudeBlock, `${page.id}-gratitude`));
+    const area = withPadding(gratitudeBlock);
+    nodes.push(createTextNode(`${page.id}-gratitude-title`, 'Благодарность:', area.x, area.y, 20, 'bold', theme.colors.text, area.width));
+    drawWritingLines(nodes, { x: area.x, y: area.y + 38, width: area.width, height: area.height - 54 }, 3, theme.colors.border, `${page.id}-gratitude-lines`);
+  }
+
+  const footerAnchors = [footerBlock, gratitudeBlock].filter(
+    (block): block is NonNullable<typeof footerBlock> => Boolean(block),
+  );
+  const navAreaY = (footerAnchors.length > 0
+    ? Math.max(...footerAnchors.map((block) => block.y + block.height))
+    : 1280) + 28;
   const items = [
     { id: 'prev', label: 'Prev', target: page.kind === 'week-left' ? getPageById(model.plan, `page-week-${(page.weekIndex ?? 0)}-left`)?.id : getPageById(model.plan, `page-week-${(page.weekIndex ?? 0)}-right`)?.id, rect: { x: 120, y: navAreaY, width: 220, height: 64 } },
     { id: 'next', label: 'Next', target: page.kind === 'week-left' ? getPageById(model.plan, `page-week-${(page.weekIndex ?? 0) + 2}-left`)?.id : getPageById(model.plan, `page-week-${(page.weekIndex ?? 0) + 2}-right`)?.id, rect: { x: 360, y: navAreaY, width: 220, height: 64 } },

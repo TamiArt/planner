@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { startTransition, useDeferredValue, useRef, useState, type ChangeEvent } from 'react';
+import { startTransition, useDeferredValue, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { InfoCard } from '../components/InfoCard';
 import { Panel } from '../components/Panel';
 import { PlannerRenderPreviewPanel } from '../components/PlannerRenderPreviewPanel';
@@ -83,6 +83,7 @@ import type {
   AstrologyLineDensity,
   AstrologyLinePresetId,
   PlannerAstrologyConfig,
+  PlannerAstrologyCustomCity,
   PlannerAstrologyLayers,
   PlannerConfig,
   PlannerSectionConfig,
@@ -102,7 +103,7 @@ interface StickerUploadNotice {
 
 const WORKFLOW_STEPS: Array<{ id: BuilderStepId; title: string; description: string }> = [
   { id: 'foundation', title: 'Основа', description: 'Определите сценарий продукта и базовый режим сборки.' },
-  { id: 'astrology', title: 'Астрология', description: 'Уточните столицу, аянамшу и данные фаз Луны для датированных страниц.' },
+  { id: 'astrology', title: 'Астрология', description: 'Уточните город, аянамшу и данные фаз Луны для датированных страниц.' },
   { id: 'structure', title: 'Структура', description: 'Соберите состав документа и порядок разделов.' },
   { id: 'design', title: 'Дизайн', description: 'Выберите тему, фон и визуальный язык планера.' },
   { id: 'layout', title: 'Макет', description: 'Редактируйте геометрию страниц через блоки, сетку и инспектор.' },
@@ -368,6 +369,45 @@ export function BuilderWorkflowPage() {
     }));
   }
 
+  function syncMoonPhaseMessage(targetYear = config.year, enabled = config.moonPhases.enabled) {
+    if (config.mode !== 'dated' || !targetYear) {
+      setMoonPhaseStatus('idle');
+      setMoonPhaseMessage('Фазы Луны доступны для датированного режима с выбранным годом.');
+      return;
+    }
+
+    if (!enabled) {
+      setMoonPhaseStatus('idle');
+      setMoonPhaseMessage(null);
+      return;
+    }
+
+    if (hasMoonPhaseDataForYear(config.moonPhases, targetYear)) {
+      setMoonPhaseStatus('success');
+      setMoonPhaseMessage(`Используются сохраненные данные USNO для ${targetYear} года.`);
+      return;
+    }
+
+    setMoonPhaseStatus('idle');
+    setMoonPhaseMessage(`Сохраненных данных USNO для ${targetYear} года нет. Нажмите «Обновить данные».`);
+  }
+
+  useEffect(() => {
+    if (moonPhaseStatus === 'loading' || moonPhaseStatus === 'error') {
+      return;
+    }
+
+    syncMoonPhaseMessage(config.year, config.moonPhases.enabled);
+  }, [
+    config.mode,
+    config.year,
+    config.moonPhases.enabled,
+    config.moonPhases.fetchedAt,
+    config.moonPhases.events.length,
+    config.moonPhases.years.join(','),
+    moonPhaseStatus,
+  ]);
+
   function updateAstrologyDisplay<K extends keyof PlannerAstrologyConfig['display']>(
     field: K,
     value: PlannerAstrologyConfig['display'][K],
@@ -382,6 +422,46 @@ export function BuilderWorkflowPage() {
 
   function handleAstrologyCityChange(cityId: string) {
     updateAstrologyConfig({ cityId });
+  }
+
+  function handleAstrologyCityModeChange(cityMode: PlannerAstrologyConfig['cityMode']) {
+    if (cityMode === 'custom') {
+      const nextCustomCity: PlannerAstrologyCustomCity = config.astrology.cityMode === 'custom' && config.astrology.customCity
+        ? config.astrology.customCity
+        : {
+            name: selectedAstrologyCity.name,
+            country: selectedAstrologyCity.country,
+            timezone: selectedAstrologyCity.timezone,
+            latitude: selectedAstrologyCity.latitudeText,
+            longitude: selectedAstrologyCity.longitudeText,
+          };
+
+      updateAstrologyConfig({
+        cityMode: 'custom',
+        customCity: nextCustomCity,
+      });
+      return;
+    }
+
+    updateAstrologyConfig({ cityMode: 'preset' });
+  }
+
+  function handleAstrologyCustomCityChange<K extends keyof PlannerAstrologyCustomCity>(
+    field: K,
+    value: PlannerAstrologyCustomCity[K],
+  ) {
+    updateAstrologyConfig({
+      customCity: {
+        ...(config.astrology.customCity ?? {
+          name: selectedAstrologyCity.name,
+          country: selectedAstrologyCity.country,
+          timezone: selectedAstrologyCity.timezone,
+          latitude: selectedAstrologyCity.latitudeText,
+          longitude: selectedAstrologyCity.longitudeText,
+        }),
+        [field]: value,
+      },
+    });
   }
 
   function handleAstrologyLayerToggle(layer: keyof PlannerAstrologyLayers) {
@@ -427,13 +507,17 @@ export function BuilderWorkflowPage() {
 
     try {
       const data = await fetchMoonPhaseData(targetYear);
+      const nextData = normalizeMoonPhaseConfig({
+        ...data,
+        enabled: config.moonPhases.enabled,
+      });
 
       startTransition(() => {
-        setField('moonPhases', data);
+        setField('moonPhases', nextData);
       });
 
       setMoonPhaseStatus('success');
-      setMoonPhaseMessage(`Данные USNO загружены для ${targetYear} года и соседних границ календаря.`);
+      setMoonPhaseMessage(`Данные USNO обновлены для ${targetYear} года и соседних границ календаря.`);
     } catch (error) {
       setMoonPhaseStatus('error');
       setMoonPhaseMessage(error instanceof Error ? error.message : 'Не удалось загрузить данные USNO.');
@@ -448,7 +532,8 @@ export function BuilderWorkflowPage() {
       return;
     }
 
-    void refreshMoonPhaseData();
+    updateMoonPhaseConfig({ enabled: true });
+    syncMoonPhaseMessage(config.year, true);
   }
 
   function handleModeChange(mode: PlannerConfig['mode']) {
@@ -466,8 +551,8 @@ export function BuilderWorkflowPage() {
 
     setField('year', nextYear);
 
-    if (config.moonPhases.enabled && config.mode === 'dated' && nextYear) {
-      void refreshMoonPhaseData(nextYear);
+    if (config.moonPhases.enabled) {
+      syncMoonPhaseMessage(nextYear, true);
     }
   }
 
@@ -736,6 +821,15 @@ export function BuilderWorkflowPage() {
 
     setActiveStep('design');
     setFeedback(`Прозрачность фона обновлена: ${Math.round(nextOpacity * 100)}%.`);
+  }
+
+  function handleTabPositionChange(position: PlannerConfig['tabPosition']) {
+    startTransition(() => {
+      setField('tabPosition', position);
+    });
+
+    setActiveStep('design');
+    setFeedback(`Расположение вкладок обновлено: ${position === 'top' ? 'сверху' : 'справа'}.`);
   }
 
   function handleRemoveCoverImage() {
@@ -1024,36 +1118,113 @@ export function BuilderWorkflowPage() {
         <>
         <Panel title="Астрология" eyebrow="Шаг 2">
           <p className="muted-copy">
-            Уточните столицу пользователя для будущих расчетов Джйотиш. В списке доступны только столицы; свободный ввод
-            города отключен, чтобы расчеты опирались на согласованную базу координат и часовых поясов.
+            Уточните город пользователя для будущих расчетов Джйотиш. Можно выбрать готовый город из списка или ввести
+            свой вручную вместе с часовым поясом и координатами.
           </p>
 
-          <div className="form-grid workflow-panel__space">
-            <label className="field">
-              <span className="field__label">Город пользователя</span>
-              <select
-                value={config.astrology.cityId}
-                onChange={(event) => handleAstrologyCityChange(event.target.value)}
-                className="select"
-              >
-                {CAPITAL_CITY_OPTIONS.map((city) => (
-                  <option key={city.id} value={city.id}>
-                    {city.name} · {city.country}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field__label">Аянамша</span>
-              <input value={JYOTISH_AYANAMSA_LABEL} disabled className="input" />
-            </label>
+          <div className="workflow-mode-toggle workflow-panel__space">
+            <button
+              type="button"
+              onClick={() => handleAstrologyCityModeChange('preset')}
+              className={clsx('workflow-mode-toggle__button', config.astrology.cityMode === 'preset' && 'workflow-mode-toggle__button--active')}
+            >
+              Из списка
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAstrologyCityModeChange('custom')}
+              className={clsx('workflow-mode-toggle__button', config.astrology.cityMode === 'custom' && 'workflow-mode-toggle__button--active')}
+            >
+              Свой город
+            </button>
           </div>
 
+          {config.astrology.cityMode === 'preset' ? (
+            <div className="form-grid workflow-panel__space">
+              <label className="field">
+                <span className="field__label">Город пользователя</span>
+                <select
+                  value={config.astrology.cityId}
+                  onChange={(event) => handleAstrologyCityChange(event.target.value)}
+                  className="select"
+                >
+                  {CAPITAL_CITY_OPTIONS.map((city) => (
+                    <option key={city.id} value={city.id}>
+                      {city.name} · {city.country}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field">
+                <span className="field__label">Аянамша</span>
+                <input value={JYOTISH_AYANAMSA_LABEL} disabled className="input" />
+              </label>
+            </div>
+          ) : (
+            <div className="form-grid workflow-panel__space">
+              <label className="field">
+                <span className="field__label">Название города</span>
+                <input
+                  value={config.astrology.customCity?.name ?? ''}
+                  onChange={(event) => handleAstrologyCustomCityChange('name', event.target.value)}
+                  className="input"
+                  placeholder="Например, Казань"
+                />
+              </label>
+
+              <label className="field">
+                <span className="field__label">Страна или регион</span>
+                <input
+                  value={config.astrology.customCity?.country ?? ''}
+                  onChange={(event) => handleAstrologyCustomCityChange('country', event.target.value)}
+                  className="input"
+                  placeholder="Россия"
+                />
+              </label>
+
+              <label className="field">
+                <span className="field__label">Часовой пояс</span>
+                <input
+                  value={config.astrology.customCity?.timezone ?? ''}
+                  onChange={(event) => handleAstrologyCustomCityChange('timezone', event.target.value)}
+                  className="input"
+                  placeholder="Europe/Moscow"
+                />
+              </label>
+
+              <label className="field">
+                <span className="field__label">Широта</span>
+                <input
+                  value={config.astrology.customCity?.latitude ?? ''}
+                  onChange={(event) => handleAstrologyCustomCityChange('latitude', event.target.value)}
+                  className="input"
+                  placeholder="55.7558"
+                />
+              </label>
+
+              <label className="field">
+                <span className="field__label">Долгота</span>
+                <input
+                  value={config.astrology.customCity?.longitude ?? ''}
+                  onChange={(event) => handleAstrologyCustomCityChange('longitude', event.target.value)}
+                  className="input"
+                  placeholder="37.6173"
+                />
+              </label>
+
+              <label className="field">
+                <span className="field__label">Аянамша</span>
+                <input value={JYOTISH_AYANAMSA_LABEL} disabled className="input" />
+              </label>
+            </div>
+          )}
+
           <div className="summary-grid workflow-panel__space">
-            <InfoCard label="Столица" value={`${selectedAstrologyCity.name} · ${selectedAstrologyCity.country}`} />
+            <InfoCard label="Режим города" value={config.astrology.cityMode === 'custom' ? 'свой город' : 'из списка'} />
+            <InfoCard label="Город" value={`${selectedAstrologyCity.name} · ${selectedAstrologyCity.country}`} />
             <InfoCard label="Часовой пояс" value={selectedAstrologyCity.timezone} />
-            <InfoCard label="Координаты" value={`${selectedAstrologyCity.latitude.toFixed(4)}, ${selectedAstrologyCity.longitude.toFixed(4)}`} />
+            <InfoCard label="Координаты" value={`${selectedAstrologyCity.latitudeText}, ${selectedAstrologyCity.longitudeText}`} />
             <InfoCard label="Аянамша" value={JYOTISH_AYANAMSA_LABEL} />
             <InfoCard label="Расчёт" value={ASTROLOGY_CALCULATION_TIME_LABEL} />
             <InfoCard label="Иконки" value={ASTROLOGY_ICON_STYLE_LABEL} />
@@ -1062,7 +1233,7 @@ export function BuilderWorkflowPage() {
 
         <Panel title="Астро-день" eyebrow="Расчёт">
           <p className="muted-copy">
-            Титхи и накшатра считаются на локальный восход выбранной столицы. Swiss Ephemeris не встраивается в проект,
+            Титхи и накшатра считаются на локальный восход выбранного города. Swiss Ephemeris не встраивается в проект,
             а используется только как внешний ориентир для сверки методики.
           </p>
 
@@ -1475,6 +1646,7 @@ export function BuilderWorkflowPage() {
               <InfoCard label="Фон" value={selectedBackground.name} />
               <InfoCard label="Обложка" value={config.coverImage?.name ?? 'не задана'} />
               <InfoCard label="Фон листов" value={config.pageBackgroundImage?.name ?? 'не задан'} />
+              <InfoCard label="Вкладки" value={config.tabPosition === 'top' ? 'сверху' : 'справа'} />
               <div className="surface-block surface-block--slider">
                 <p className="surface-block__label">Прозрачность</p>
                 <div className="surface-block__slider-stack">
@@ -1495,6 +1667,40 @@ export function BuilderWorkflowPage() {
                 label="Текущий стиль"
                 value={getCurrentBackgroundStyleLabel()}
               />
+            </div>
+          </Panel>
+
+          <Panel title="Навигация" eyebrow="Вкладки">
+            <p className="muted-copy">
+              Вкладки месяцев и разделов можно держать в правой колонке или перенести наверх, чтобы композиция страницы
+              ощущалась более горизонтальной.
+            </p>
+
+            <div className="workflow-panel__space">
+              <div className="field">
+                <span className="field__label">Расположение вкладок</span>
+                <div className="workflow-mode-toggle">
+                  <button
+                    type="button"
+                    onClick={() => handleTabPositionChange('top')}
+                    className={clsx('workflow-mode-toggle__button', config.tabPosition === 'top' && 'workflow-mode-toggle__button--active')}
+                  >
+                    Сверху
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTabPositionChange('right')}
+                    className={clsx('workflow-mode-toggle__button', config.tabPosition === 'right' && 'workflow-mode-toggle__button--active')}
+                  >
+                    Справа
+                  </button>
+                </div>
+              </div>
+
+              <div className="summary-grid">
+                <InfoCard label="Положение" value={config.tabPosition === 'top' ? 'сверху' : 'справа'} />
+                <InfoCard label="Всего вкладок" value={`${plan.tabs.length}`} />
+              </div>
             </div>
           </Panel>
 

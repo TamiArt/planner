@@ -1,4 +1,4 @@
-import type { PlannerLayoutsConfig } from '../../../shared/layout/types';
+import type { LayoutBlock, PlannerLayoutsConfig } from '../../../shared/layout/types';
 import { normalizeLayoutGeometry } from '../../../shared/layout/updateBlock';
 import { createDefaultPlannerLayouts, clonePlannerLayouts } from './defaultLayouts';
 
@@ -34,6 +34,37 @@ const DEFAULT_LAYOUT_BLOCK_STYLE = {
   opacity: 1,
 };
 
+function migrateWeekLeftFooterBlocks(blocks: LayoutBlock[]) {
+  const noteBlocks = blocks.filter((block) => block.type === 'note-area');
+
+  if (noteBlocks.length !== 1) {
+    return blocks;
+  }
+
+  const footerBlock = noteBlocks[0];
+  const gratitudeWidth = Math.min(380, Math.max(300, Math.round(footerBlock.width * 0.23)));
+  const gap = Math.min(40, Math.max(24, Math.round(footerBlock.width * 0.024)));
+  const focusWidth = footerBlock.width - gratitudeWidth - gap;
+
+  if (focusWidth < 360) {
+    return blocks;
+  }
+
+  const gratitudeBlock: LayoutBlock = {
+    ...footerBlock,
+    id: `${footerBlock.id}-gratitude`,
+    name: 'Благодарность',
+    x: footerBlock.x + focusWidth + gap,
+    width: gratitudeWidth,
+  };
+
+  return blocks.flatMap((block) => (
+    block.id === footerBlock.id
+      ? [{ ...block, width: focusWidth }, gratitudeBlock]
+      : [block]
+  ));
+}
+
 export function normalizePlannerLayouts(layouts?: PlannerLayoutsConfig): PlannerLayoutsConfig {
   const defaults = clonePlannerLayouts(createDefaultPlannerLayouts());
 
@@ -46,7 +77,7 @@ export function normalizePlannerLayouts(layouts?: PlannerLayoutsConfig): Planner
       return;
     }
 
-    defaults[target as keyof PlannerLayoutsConfig] = normalizeLayoutGeometry({
+    const normalizedLayout = {
       ...defaults[target as keyof PlannerLayoutsConfig],
       ...layout,
       width: layout.width ?? defaults[target as keyof PlannerLayoutsConfig]?.width,
@@ -72,6 +103,13 @@ export function normalizePlannerLayouts(layouts?: PlannerLayoutsConfig): Planner
           ...(block.padding ?? {}),
         },
       })) ?? defaults[target as keyof PlannerLayoutsConfig]?.blocks ?? [],
+    };
+
+    defaults[target as keyof PlannerLayoutsConfig] = normalizeLayoutGeometry({
+      ...normalizedLayout,
+      blocks: target === 'week-left'
+        ? migrateWeekLeftFooterBlocks(normalizedLayout.blocks)
+        : normalizedLayout.blocks,
     });
   });
 

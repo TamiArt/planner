@@ -101,6 +101,7 @@ export function createDefaultPlannerConfig(): PlannerConfig {
     includeIndex: true,
     includeStickerSheets: true,
     tabs: [],
+    tabPosition: 'right',
     weekStartsOn: 'monday',
   });
 
@@ -147,6 +148,7 @@ export function syncPlannerConfig(config: PlannerConfig): PlannerConfig {
     astrology: normalizeAstrologyConfig(config.astrology),
     moonPhases: normalizeMoonPhaseConfig(config.moonPhases),
     tabs: [],
+    tabPosition: config.tabPosition ?? 'right',
     weekStartsOn: 'monday',
   });
 

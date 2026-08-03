@@ -29,6 +29,7 @@ export type PlannerModuleId =
   | 'layout-editor';
 
 export type PlannerTabKind = 'month' | 'section';
+export type PlannerTabPosition = 'right' | 'top';
 export type BackgroundType = 'color' | 'texture' | 'image';
 export type StickerBackgroundMode = 'white' | 'transparent';
 export type StickerCategory = 'functional' | 'decorative' | 'emoji';
@@ -45,6 +46,7 @@ export type JyotishAyanamsaId = 'lahiri';
 export type AstrologyCalculationSourceId = 'astronomy-engine';
 export type AstrologyCalculationTime = 'sunrise';
 export type AstroIconStyle = 'fluent-flat';
+export type AstrologyCityMode = 'preset' | 'custom';
 export type AstrologyLinePresetId = 'compact-icons' | 'full-icons' | 'text-icons';
 export type AstrologyLineDensity = 'compact' | 'standard' | 'wide';
 export type AstrologyTithiType = 'start' | 'active' | 'cleansing' | 'peak';
@@ -202,10 +204,22 @@ export interface PlannerMoonPhaseConfig {
   events: MoonPhaseEvent[];
 }
 
+export interface PlannerAstrologyCustomCity {
+  name: string;
+  country?: string;
+  timezone: string;
+  latitude: string;
+  longitude: string;
+}
+
 export interface PlannerAstrologyDayEntry {
   iso: string;
   cityId: string;
+  locationMode: AstrologyCityMode;
+  locationName: string;
   timezone: string;
+  latitude: number;
+  longitude: number;
   sunriseInstant: string;
   tithiNumber: number;
   tithiPakshaNumber: number;
@@ -222,7 +236,11 @@ export interface PlannerAstrologyDataConfig {
   source: AstrologyCalculationSourceId;
   year: number;
   cityId: string;
+  locationMode: AstrologyCityMode;
+  locationName: string;
   timezone: string;
+  latitude: number;
+  longitude: number;
   ayanamsa: JyotishAyanamsaId;
   calculationTime: AstrologyCalculationTime;
   calculatedAt: string;
@@ -230,7 +248,9 @@ export interface PlannerAstrologyDataConfig {
 }
 
 export interface PlannerAstrologyConfig {
+  cityMode: AstrologyCityMode;
   cityId: string;
+  customCity?: PlannerAstrologyCustomCity;
   ayanamsa: JyotishAyanamsaId;
   calculationTime: AstrologyCalculationTime;
   iconStyle: AstroIconStyle;
@@ -280,5 +300,6 @@ export interface PlannerConfig {
   includeIndex: boolean;
   includeStickerSheets: boolean;
   tabs: TabConfig[];
+  tabPosition: PlannerTabPosition;
   weekStartsOn: 'monday';
 }
