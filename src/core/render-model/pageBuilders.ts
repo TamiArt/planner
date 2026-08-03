@@ -804,6 +804,43 @@ function buildMonthPage(model: PlannerRenderModel, renderPage: PlannerRenderPage
       addLink(links, page.id, week.id, rect);
     });
   }
+
+  layout.blocks
+    .filter((block) => block.meta?.userAdded === true && block.id !== focusBlock?.id)
+    .forEach((block, index) => {
+      const blockId = `${page.id}-custom-month-block-${index}`;
+      nodes.push(blockSurface(block, `${blockId}-surface`));
+      const area = withPadding(block);
+
+      if (block.type === 'note-area') {
+        nodes.push(createTextNode(`${blockId}-title`, block.name ?? 'Заметки', area.x, area.y, 22, 'bold', theme.colors.text, area.width));
+        drawWritingLines(nodes, { x: area.x, y: area.y + 48, width: area.width, height: area.height - 56 }, 6, theme.colors.border, `${blockId}-lines`);
+      } else if (block.type === 'checklist') {
+        nodes.push(createTextNode(`${blockId}-title`, block.name ?? 'Чек-лист', area.x, area.y, 22, 'bold', theme.colors.text, area.width));
+        const rowCount = Math.max(1, Math.min(8, Math.floor((area.height - 54) / 42)));
+        for (let row = 0; row < rowCount; row += 1) {
+          const y = area.y + 50 + row * 42;
+          nodes.push(createRectNode(`${blockId}-checkbox-${row}`, { x: area.x, y, width: 22, height: 22 }, {
+            stroke: theme.colors.border,
+            strokeWidth: 2,
+            radius: createRadius(5),
+          }));
+          nodes.push({
+            id: `${blockId}-line-${row}`,
+            kind: 'line',
+            x1: area.x + 38,
+            y1: y + 12,
+            x2: area.x + area.width,
+            y2: y + 12,
+            stroke: theme.colors.border,
+            strokeWidth: 2,
+            opacity: 0.6,
+          });
+        }
+      } else if (block.type === 'text') {
+        nodes.push(createTextNode(`${blockId}-text`, block.name ?? 'Текст', area.x, area.y, 22, 'body', theme.colors.text, area.width));
+      }
+    });
 }
 
 function buildWeekPage(model: PlannerRenderModel, renderPage: PlannerRenderPage, links: PlannerLinkDefinition[]) {

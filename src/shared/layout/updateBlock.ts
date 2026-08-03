@@ -4,7 +4,7 @@ import type { LayoutBlock, PageLayout } from './types';
 const MIN_BLOCK_SIZE = 40;
 const BLOCK_GAP = 24;
 // Reserve space for the right-side tab rail plus a small visual gutter.
-const CONTENT_RIGHT_GUTTER = 248;
+export const LAYOUT_CONTENT_RIGHT_GUTTER = 248;
 const UNBOUNDED_BLOCK_TYPES = new Set<LayoutBlock['type'] | string>(['image', 'shape', 'decoration']);
 
 function touchLayout(layout: PageLayout) {
@@ -24,7 +24,7 @@ function shouldClampBlockToContentColumn(block: LayoutBlock) {
 
 function clampBlockToCanvas(block: LayoutBlock, layout: PageLayout): LayoutBlock {
   const maxRight = shouldClampBlockToContentColumn(block)
-    ? Math.max(MIN_BLOCK_SIZE, layout.width - CONTENT_RIGHT_GUTTER)
+    ? Math.max(MIN_BLOCK_SIZE, layout.width - LAYOUT_CONTENT_RIGHT_GUTTER)
     : layout.width;
   const width = clamp(block.width, MIN_BLOCK_SIZE, maxRight);
   const height = clamp(block.height, MIN_BLOCK_SIZE, layout.height);
