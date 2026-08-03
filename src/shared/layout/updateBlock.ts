@@ -127,6 +127,13 @@ export function normalizeLayoutGeometry(layout: PageLayout): PageLayout {
   };
 }
 
+export function constrainLayoutToCanvas(layout: PageLayout): PageLayout {
+  return {
+    ...layout,
+    blocks: layout.blocks.map((block) => clampBlockToCanvas(block, layout)),
+  };
+}
+
 export function updateBlockPosition(
   layout: PageLayout,
   blockId: string,

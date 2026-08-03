@@ -65,3 +65,19 @@ export function removeLayoutBlock(layout: PageLayout, blockId: string) {
     blocks: layout.blocks.filter((block) => block.id !== blockId),
   };
 }
+
+export function updateLayoutBlockContent(
+  layout: PageLayout,
+  blockId: string,
+  patch: { name?: string; content?: string },
+) {
+  return {
+    ...layout,
+    updatedAt: new Date().toISOString(),
+    blocks: layout.blocks.map((block) => block.id === blockId ? {
+      ...block,
+      name: patch.name ?? block.name,
+      meta: patch.content === undefined ? block.meta : { ...block.meta, content: patch.content },
+    } : block),
+  };
+}

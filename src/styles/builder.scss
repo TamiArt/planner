@@ -1435,7 +1435,14 @@
     }
   }
 
-  &__delete-button {
+  &__block-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  &__content-fields {
     margin-bottom: 14px;
   }
 

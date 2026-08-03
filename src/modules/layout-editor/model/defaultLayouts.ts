@@ -32,10 +32,10 @@ export function createDefaultPlannerLayouts(): Record<LayoutPageTarget, PageLayo
       createBlock({ type: 'calendar', name: 'Карта месяцев', x: 120, y: 320, width: 1680, height: 940 }),
     ]),
     month: createLayout('month', 'Макет месяца', [
-      createBlock({ type: 'header', name: 'Заголовок', x: 120, y: 108, width: 1680, height: 150 }),
-      createBlock({ type: 'calendar', name: 'Сетка календаря', x: 980, y: 320, width: 820, height: 760 }),
-      createBlock({ type: 'note-area', name: 'Фокус месяца', x: 120, y: 320, width: 780, height: 760 }),
-      createBlock({ type: 'group', name: 'Ссылки на недели', x: 120, y: 1120, width: 1680, height: 220 }),
+      createBlock({ type: 'header', name: 'Заголовок', x: 120, y: 108, width: 1680, height: 150, meta: { role: 'month-header' } }),
+      createBlock({ type: 'calendar', name: 'Сетка календаря', x: 980, y: 320, width: 820, height: 760, meta: { role: 'month-calendar' } }),
+      createBlock({ type: 'note-area', name: 'Фокус месяца', x: 120, y: 320, width: 780, height: 760, meta: { role: 'month-focus' } }),
+      createBlock({ type: 'group', name: 'Ссылки на недели', x: 120, y: 1120, width: 1680, height: 220, meta: { role: 'month-week-links' } }),
     ]),
     'week-left': createLayout('week-left', 'Макет недели слева', [
       createBlock({ type: 'header', name: 'Заголовок', x: 120, y: 108, width: 1680, height: 150 }),

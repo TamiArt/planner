@@ -666,9 +666,10 @@ function buildYearPage(model: PlannerRenderModel, renderPage: PlannerRenderPage,
 function buildMonthPage(model: PlannerRenderModel, renderPage: PlannerRenderPage, links: PlannerLinkDefinition[]) {
   const { theme, config } = model;
   const { page, layout, nodes } = renderPage;
-  const focusBlock = getBlock(layout, 'note-area');
-  const calendarBlock = getBlock(layout, 'calendar');
-  const weekLinksBlock = getBlock(layout, 'group');
+  const focusBlock = layout.blocks.find((block) => block.meta?.role === 'month-focus')
+    ?? layout.blocks.find((block) => block.type === 'note-area' && block.meta?.userAdded !== true);
+  const calendarBlock = layout.blocks.find((block) => block.meta?.role === 'month-calendar') ?? getBlock(layout, 'calendar');
+  const weekLinksBlock = layout.blocks.find((block) => block.meta?.role === 'month-week-links') ?? getBlock(layout, 'group');
   const activeYear = config.year ?? new Date().getFullYear();
   const monthCalendar = getMonthCalendar(activeYear, page.monthIndex ?? 0);
   const weekTargetByIso = new Map<string, string>();
@@ -838,7 +839,10 @@ function buildMonthPage(model: PlannerRenderModel, renderPage: PlannerRenderPage
           });
         }
       } else if (block.type === 'text') {
-        nodes.push(createTextNode(`${blockId}-text`, block.name ?? 'Текст', area.x, area.y, 22, 'body', theme.colors.text, area.width));
+        const content = typeof block.meta?.content === 'string' && block.meta.content.trim()
+          ? block.meta.content
+          : block.name ?? 'Текст';
+        nodes.push(createTextNode(`${blockId}-text`, content, area.x, area.y, 22, 'body', theme.colors.text, area.width));
       }
     });
 }

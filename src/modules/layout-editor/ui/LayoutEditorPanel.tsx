@@ -12,7 +12,11 @@ import {
 import { updateBlockPosition, updateBlockSize } from '../../../shared/layout/updateBlock';
 import { updateBlockStyle } from '../../../shared/layout/updateBlockStyle';
 import { getBlockTypeLabel, MONTH_BLOCK_OPTIONS, type AddableMonthBlockType } from '../model/blockCatalog';
-import { addMonthLayoutBlock, removeLayoutBlock } from '../model/blockOperations';
+import {
+  addMonthLayoutBlock,
+  removeLayoutBlock,
+  updateLayoutBlockContent,
+} from '../model/blockOperations';
 import { normalizePlannerLayouts } from '../model/normalizeLayouts';
 import { LayoutCanvas } from './LayoutCanvas';
 
@@ -197,9 +201,36 @@ function LayoutInspector({
       </div>
 
       {onDelete ? (
-        <button type="button" onClick={onDelete} className="button button--ghost layout-editor__delete-button">
-          Удалить блок
-        </button>
+        <div className="layout-editor__block-actions">
+          <button type="button" onClick={onDelete} className="button button--ghost">
+            Удалить блок
+          </button>
+        </div>
+      ) : null}
+
+      {block.meta?.userAdded === true ? (
+        <div className="form-grid layout-editor__content-fields">
+          <label className="field">
+            <span className="field__label">Название блока</span>
+            <input
+              type="text"
+              value={block.name ?? ''}
+              onChange={(event) => commit(updateLayoutBlockContent(layout, block.id, { name: event.target.value }))}
+              className="input"
+            />
+          </label>
+          {block.type === 'text' ? (
+            <label className="field">
+              <span className="field__label">Текст</span>
+              <textarea
+                value={typeof block.meta?.content === 'string' ? block.meta.content : ''}
+                onChange={(event) => commit(updateLayoutBlockContent(layout, block.id, { content: event.target.value }))}
+                className="input"
+                rows={3}
+              />
+            </label>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="form-grid">
@@ -404,7 +435,7 @@ export function LayoutEditorPanel({ config, onConfigChange }: PlannerModulePanel
       return;
     }
 
-    const isFunctionalBlock = ['header', 'calendar', 'group'].includes(selectedBlock.type);
+    const isFunctionalBlock = typeof selectedBlock.meta?.role === 'string';
     if (isFunctionalBlock && !window.confirm('Этот блок отвечает за содержимое или навигацию страницы месяца. Удалить его?')) {
       return;
     }

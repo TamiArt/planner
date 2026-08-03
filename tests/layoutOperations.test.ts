@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addMonthLayoutBlock, removeLayoutBlock } from '../src/modules/layout-editor/model/blockOperations';
+import {
+  addMonthLayoutBlock,
+  removeLayoutBlock,
+  updateLayoutBlockContent,
+} from '../src/modules/layout-editor/model/blockOperations';
+import { normalizePlannerLayouts } from '../src/modules/layout-editor/model/normalizeLayouts';
+import { buildPlannerRenderModel } from '../src/core/render-model/buildPlannerRenderModel';
+import { createDefaultPlannerConfig } from '../src/lib/config/defaultPlannerConfig';
 import { constrainBlockPosition, updateBlockPosition } from '../src/shared/layout/updateBlock';
 import type { PageLayout } from '../src/shared/layout/types';
 
@@ -56,4 +63,50 @@ test('adds and removes a month block without mutating the source layout', () => 
 
   const removed = removeLayoutBlock(result.layout, result.block.id);
   assert.deepEqual(removed.blocks.map((block) => block.id), ['existing']);
+});
+
+test('preserves deliberate overlaps while normalizing saved layouts', () => {
+  const layout = createLayout();
+  layout.target = 'month';
+  layout.blocks.push({ ...layout.blocks[0], id: 'overlapping', x: 128, y: 320, meta: { userAdded: true } });
+
+  const normalized = normalizePlannerLayouts({ month: layout }).month!;
+  assert.deepEqual(normalized.blocks.slice(-2).map(({ x, y }) => ({ x, y })), [
+    { x: 128, y: 320 },
+    { x: 128, y: 320 },
+  ]);
+});
+
+test('migrates month system roles without assigning them to user blocks', () => {
+  const layout = createLayout();
+  layout.target = 'month';
+  layout.blocks[0].meta = { userAdded: true };
+  layout.blocks.push({ ...layout.blocks[0], id: 'system-focus', meta: undefined });
+
+  const normalized = normalizePlannerLayouts({ month: layout }).month!;
+  assert.equal(normalized.blocks.find((block) => block.id === 'existing')?.meta?.role, undefined);
+  assert.equal(normalized.blocks.find((block) => block.id === 'system-focus')?.meta?.role, 'month-focus');
+});
+
+test('updates custom content immutably', () => {
+  const layout = createLayout();
+
+  const updated = updateLayoutBlockContent(layout, 'existing', { name: 'Планы', content: 'Главная цель' });
+  assert.equal(updated.blocks[0].name, 'Планы');
+  assert.equal(updated.blocks[0].meta?.content, 'Главная цель');
+  assert.equal(layout.blocks[0].name, undefined);
+
+});
+
+test('renders custom month text content through the shared render model', () => {
+  const config = createDefaultPlannerConfig();
+  const monthLayout = normalizePlannerLayouts(config.layouts).month!;
+  const added = addMonthLayoutBlock(monthLayout, 'text');
+  const withContent = updateLayoutBlockContent(added.layout, added.block.id, { content: 'Важная цель месяца' });
+  config.layouts = { ...config.layouts, month: withContent };
+
+  const model = buildPlannerRenderModel(config);
+  const monthPage = model.pages.find((page) => page.page.kind === 'month');
+  assert.ok(monthPage);
+  assert.ok(monthPage.nodes.some((node) => node.kind === 'text' && node.lines.includes('Важная цель месяца')));
 });
