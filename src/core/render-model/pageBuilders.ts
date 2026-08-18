@@ -666,9 +666,10 @@ function buildYearPage(model: PlannerRenderModel, renderPage: PlannerRenderPage,
 function buildMonthPage(model: PlannerRenderModel, renderPage: PlannerRenderPage, links: PlannerLinkDefinition[]) {
   const { theme, config } = model;
   const { page, layout, nodes } = renderPage;
-  const focusBlock = getBlock(layout, 'note-area');
-  const calendarBlock = getBlock(layout, 'calendar');
-  const weekLinksBlock = getBlock(layout, 'group');
+  const focusBlock = layout.blocks.find((block) => block.meta?.role === 'month-focus')
+    ?? layout.blocks.find((block) => block.type === 'note-area' && block.meta?.userAdded !== true);
+  const calendarBlock = layout.blocks.find((block) => block.meta?.role === 'month-calendar') ?? getBlock(layout, 'calendar');
+  const weekLinksBlock = layout.blocks.find((block) => block.meta?.role === 'month-week-links') ?? getBlock(layout, 'group');
   const activeYear = config.year ?? new Date().getFullYear();
   const monthCalendar = getMonthCalendar(activeYear, page.monthIndex ?? 0);
   const weekTargetByIso = new Map<string, string>();
@@ -804,6 +805,46 @@ function buildMonthPage(model: PlannerRenderModel, renderPage: PlannerRenderPage
       addLink(links, page.id, week.id, rect);
     });
   }
+
+  layout.blocks
+    .filter((block) => block.meta?.userAdded === true && block.id !== focusBlock?.id)
+    .forEach((block, index) => {
+      const blockId = `${page.id}-custom-month-block-${index}`;
+      nodes.push(blockSurface(block, `${blockId}-surface`));
+      const area = withPadding(block);
+
+      if (block.type === 'note-area') {
+        nodes.push(createTextNode(`${blockId}-title`, block.name ?? 'Заметки', area.x, area.y, 22, 'bold', theme.colors.text, area.width));
+        drawWritingLines(nodes, { x: area.x, y: area.y + 48, width: area.width, height: area.height - 56 }, 6, theme.colors.border, `${blockId}-lines`);
+      } else if (block.type === 'checklist') {
+        nodes.push(createTextNode(`${blockId}-title`, block.name ?? 'Чек-лист', area.x, area.y, 22, 'bold', theme.colors.text, area.width));
+        const rowCount = Math.max(1, Math.min(8, Math.floor((area.height - 54) / 42)));
+        for (let row = 0; row < rowCount; row += 1) {
+          const y = area.y + 50 + row * 42;
+          nodes.push(createRectNode(`${blockId}-checkbox-${row}`, { x: area.x, y, width: 22, height: 22 }, {
+            stroke: theme.colors.border,
+            strokeWidth: 2,
+            radius: createRadius(5),
+          }));
+          nodes.push({
+            id: `${blockId}-line-${row}`,
+            kind: 'line',
+            x1: area.x + 38,
+            y1: y + 12,
+            x2: area.x + area.width,
+            y2: y + 12,
+            stroke: theme.colors.border,
+            strokeWidth: 2,
+            opacity: 0.6,
+          });
+        }
+      } else if (block.type === 'text') {
+        const content = typeof block.meta?.content === 'string' && block.meta.content.trim()
+          ? block.meta.content
+          : block.name ?? 'Текст';
+        nodes.push(createTextNode(`${blockId}-text`, content, area.x, area.y, 22, 'body', theme.colors.text, area.width));
+      }
+    });
 }
 
 function buildWeekPage(model: PlannerRenderModel, renderPage: PlannerRenderPage, links: PlannerLinkDefinition[]) {

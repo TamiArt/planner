@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import type { PlannerModulePanelProps } from '../../../core/registry/plannerModule';
 import { Panel } from '../../../components/Panel';
 import {
@@ -11,7 +11,14 @@ import {
 } from '../../../shared/layout';
 import { updateBlockPosition, updateBlockSize } from '../../../shared/layout/updateBlock';
 import { updateBlockStyle } from '../../../shared/layout/updateBlockStyle';
+import { getBlockTypeLabel, MONTH_BLOCK_OPTIONS, type AddableMonthBlockType } from '../model/blockCatalog';
+import {
+  addMonthLayoutBlock,
+  removeLayoutBlock,
+  updateLayoutBlockContent,
+} from '../model/blockOperations';
 import { normalizePlannerLayouts } from '../model/normalizeLayouts';
+import { LayoutCanvas } from './LayoutCanvas';
 
 const GRID_OPTIONS = [8, 16, 32] as const;
 
@@ -26,23 +33,6 @@ const TARGET_LABELS: Record<LayoutPageTarget, string> = {
   checklist: 'Чек-лист',
   sticker: 'Стикеры',
 };
-
-const BLOCK_TYPE_LABELS: Partial<Record<string, string>> = {
-  header: 'заголовок',
-  text: 'текст',
-  calendar: 'календарь',
-  'note-area': 'область заметок',
-  checklist: 'чек-лист',
-  image: 'изображение',
-  'sticker-grid': 'сетка стикеров',
-  shape: 'форма',
-  decoration: 'декор',
-  group: 'группа',
-};
-
-function getBlockTypeLabel(type: LayoutBlock['type']) {
-  return BLOCK_TYPE_LABELS[type] ?? type;
-}
 
 function toColorInputValue(value: string | undefined, fallback: string) {
   return typeof value === 'string' && value.startsWith('#') ? value : fallback;
@@ -169,74 +159,18 @@ function LayoutNumberField({
   );
 }
 
-function LayoutCanvas({
-  layoutTarget,
-  selectedBlockId,
-  onSelectBlock,
-  config,
-}: {
-  layoutTarget: LayoutPageTarget;
-  selectedBlockId: string;
-  onSelectBlock: (blockId: string) => void;
-  config: PlannerModulePanelProps['config'];
-}) {
-  const layouts = normalizePlannerLayouts(config.layouts);
-  const layout = layouts[layoutTarget];
-
-  if (!layout) {
-    return null;
-  }
-
-  const gridOpacity = layout.grid?.visible ? 1 : 0;
-  const gridSize = layout.grid?.size ?? 16;
-
-  return (
-    <div className="layout-editor__canvas">
-      <div
-        className="layout-editor__surface"
-        style={{
-          '--layout-grid-size': `${(gridSize / layout.width) * 100}%`,
-          '--layout-grid-opacity': `${gridOpacity}`,
-        } as CSSProperties}
-      >
-        {layout.blocks.map((block) => (
-          <button
-            key={block.id}
-            type="button"
-            onClick={() => onSelectBlock(block.id)}
-            className={clsx('layout-editor__block', block.id === selectedBlockId && 'layout-editor__block--active')}
-            style={{
-              left: `${(block.x / layout.width) * 100}%`,
-              top: `${(block.y / layout.height) * 100}%`,
-              width: `${(block.width / layout.width) * 100}%`,
-              height: `${(block.height / layout.height) * 100}%`,
-              borderRadius: `${Math.max(4, block.radius.topLeft * 0.18)}px ${Math.max(4, block.radius.topRight * 0.18)}px ${Math.max(4, block.radius.bottomRight * 0.18)}px ${Math.max(4, block.radius.bottomLeft * 0.18)}px`,
-              borderWidth: `${Math.max(1, block.border.width)}px`,
-              borderColor: block.border.color,
-              borderStyle: block.border.style,
-              background: block.backgroundColor,
-              opacity: block.opacity ?? 1,
-            }}
-          >
-            <strong>{block.name ?? block.type}</strong>
-            <span>{getBlockTypeLabel(block.type)}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function LayoutInspector({
   block,
   layoutTarget,
   config,
   onConfigChange,
+  onDelete,
 }: {
   block?: LayoutBlock;
   layoutTarget: LayoutPageTarget;
   config: PlannerModulePanelProps['config'];
   onConfigChange: PlannerModulePanelProps['onConfigChange'];
+  onDelete?: () => void;
 }) {
   const layouts = normalizePlannerLayouts(config.layouts);
   const layout = layouts[layoutTarget];
@@ -265,6 +199,39 @@ function LayoutInspector({
         <strong>{block.name ?? block.type}</strong>
         <span>{getBlockTypeLabel(block.type)}</span>
       </div>
+
+      {onDelete ? (
+        <div className="layout-editor__block-actions">
+          <button type="button" onClick={onDelete} className="button button--ghost">
+            Удалить блок
+          </button>
+        </div>
+      ) : null}
+
+      {block.meta?.userAdded === true ? (
+        <div className="form-grid layout-editor__content-fields">
+          <label className="field">
+            <span className="field__label">Название блока</span>
+            <input
+              type="text"
+              value={block.name ?? ''}
+              onChange={(event) => commit(updateLayoutBlockContent(layout, block.id, { name: event.target.value }))}
+              className="input"
+            />
+          </label>
+          {block.type === 'text' ? (
+            <label className="field">
+              <span className="field__label">Текст</span>
+              <textarea
+                value={typeof block.meta?.content === 'string' ? block.meta.content : ''}
+                onChange={(event) => commit(updateLayoutBlockContent(layout, block.id, { content: event.target.value }))}
+                className="input"
+                rows={3}
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="form-grid">
         <LayoutNumberField
@@ -391,6 +358,7 @@ function LayoutInspector({
 }
 
 export function LayoutEditorPanel({ config, onConfigChange }: PlannerModulePanelProps) {
+  const [newBlockType, setNewBlockType] = useState<AddableMonthBlockType>('note-area');
   const layouts = normalizePlannerLayouts(config.layouts);
   const moduleState = config.modules['layout-editor'];
   const editorState = parseModuleOptions(config);
@@ -444,6 +412,42 @@ export function LayoutEditorPanel({ config, onConfigChange }: PlannerModulePanel
         ...config.layouts,
         [selectedLayout]: defaults[selectedLayout],
       },
+    });
+  }
+
+  function addBlock() {
+    if (!activeLayout || selectedLayout !== 'month') {
+      return;
+    }
+
+    const result = addMonthLayoutBlock(activeLayout, newBlockType);
+    onConfigChange({
+      layouts: {
+        ...config.layouts,
+        [selectedLayout]: result.layout,
+      },
+      modules: updateModules(config, { selectedBlockId: result.block.id }),
+    });
+  }
+
+  function deleteSelectedBlock() {
+    if (!activeLayout || !selectedBlock || selectedLayout !== 'month') {
+      return;
+    }
+
+    const isFunctionalBlock = typeof selectedBlock.meta?.role === 'string';
+    if (isFunctionalBlock && !window.confirm('Этот блок отвечает за содержимое или навигацию страницы месяца. Удалить его?')) {
+      return;
+    }
+
+    const nextLayout = removeLayoutBlock(activeLayout, selectedBlock.id);
+    const nextSelectedBlockId = nextLayout.blocks[0]?.id ?? '';
+    onConfigChange({
+      layouts: {
+        ...config.layouts,
+        [selectedLayout]: nextLayout,
+      },
+      modules: updateModules(config, { selectedBlockId: nextSelectedBlockId }),
     });
   }
 
@@ -544,6 +548,24 @@ export function LayoutEditorPanel({ config, onConfigChange }: PlannerModulePanel
               <button type="button" onClick={resetCurrentLayout} className="button button--ghost">
                 Сбросить макет
               </button>
+
+              {selectedLayout === 'month' ? (
+                <div className="layout-editor__add-controls">
+                  <select
+                    value={newBlockType}
+                    onChange={(event) => setNewBlockType(event.target.value as AddableMonthBlockType)}
+                    className="select"
+                    aria-label="Тип нового блока"
+                  >
+                    {MONTH_BLOCK_OPTIONS.map((option) => (
+                      <option key={option.type} value={option.type}>{option.label}</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={addBlock} className="button button--ghost">
+                    Добавить блок
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <LayoutCanvas
@@ -551,6 +573,7 @@ export function LayoutEditorPanel({ config, onConfigChange }: PlannerModulePanel
               selectedBlockId={selectedBlock?.id ?? ''}
               onSelectBlock={(blockId) => updateEditorState({ selectedBlockId: blockId })}
               config={config}
+              onConfigChange={onConfigChange}
             />
           </div>
 
@@ -560,6 +583,7 @@ export function LayoutEditorPanel({ config, onConfigChange }: PlannerModulePanel
               layoutTarget={selectedLayout}
               config={config}
               onConfigChange={onConfigChange}
+              onDelete={selectedLayout === 'month' ? deleteSelectedBlock : undefined}
             />
           </div>
         </div>

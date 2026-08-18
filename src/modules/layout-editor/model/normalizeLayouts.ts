@@ -1,5 +1,5 @@
 import type { LayoutBlock, PlannerLayoutsConfig } from '../../../shared/layout/types';
-import { normalizeLayoutGeometry } from '../../../shared/layout/updateBlock';
+import { constrainLayoutToCanvas } from '../../../shared/layout/updateBlock';
 import { createDefaultPlannerLayouts, clonePlannerLayouts } from './defaultLayouts';
 
 const DEFAULT_LAYOUT_BLOCK_RADIUS = {
@@ -65,6 +65,32 @@ function migrateWeekLeftFooterBlocks(blocks: LayoutBlock[]) {
   ));
 }
 
+function migrateMonthBlockRoles(blocks: LayoutBlock[]) {
+  const roleByType = new Map([
+    ['header', 'month-header'],
+    ['calendar', 'month-calendar'],
+    ['note-area', 'month-focus'],
+    ['group', 'month-week-links'],
+  ]);
+  const assignedRoles = new Set(
+    blocks.map((block) => block.meta?.role).filter((role): role is string => typeof role === 'string'),
+  );
+
+  return blocks.map((block) => {
+    if (block.meta?.userAdded === true || typeof block.meta?.role === 'string') {
+      return block;
+    }
+
+    const role = roleByType.get(block.type);
+    if (!role || assignedRoles.has(role)) {
+      return block;
+    }
+
+    assignedRoles.add(role);
+    return { ...block, meta: { ...block.meta, role } };
+  });
+}
+
 export function normalizePlannerLayouts(layouts?: PlannerLayoutsConfig): PlannerLayoutsConfig {
   const defaults = clonePlannerLayouts(createDefaultPlannerLayouts());
 
@@ -105,15 +131,17 @@ export function normalizePlannerLayouts(layouts?: PlannerLayoutsConfig): Planner
       })) ?? defaults[target as keyof PlannerLayoutsConfig]?.blocks ?? [],
     };
 
-    defaults[target as keyof PlannerLayoutsConfig] = normalizeLayoutGeometry({
+    defaults[target as keyof PlannerLayoutsConfig] = constrainLayoutToCanvas({
       ...normalizedLayout,
       blocks: target === 'week-left'
         ? migrateWeekLeftFooterBlocks(normalizedLayout.blocks)
-        : normalizedLayout.blocks,
+        : target === 'month'
+          ? migrateMonthBlockRoles(normalizedLayout.blocks)
+          : normalizedLayout.blocks,
     });
   });
 
   return Object.fromEntries(
-    Object.entries(defaults).map(([target, layout]) => [target, normalizeLayoutGeometry(layout)]),
+    Object.entries(defaults).map(([target, layout]) => [target, constrainLayoutToCanvas(layout)]),
   ) as PlannerLayoutsConfig;
 }

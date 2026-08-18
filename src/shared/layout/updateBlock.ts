@@ -4,7 +4,7 @@ import type { LayoutBlock, PageLayout } from './types';
 const MIN_BLOCK_SIZE = 40;
 const BLOCK_GAP = 24;
 // Reserve space for the right-side tab rail plus a small visual gutter.
-const CONTENT_RIGHT_GUTTER = 248;
+export const LAYOUT_CONTENT_RIGHT_GUTTER = 248;
 const UNBOUNDED_BLOCK_TYPES = new Set<LayoutBlock['type'] | string>(['image', 'shape', 'decoration']);
 
 function touchLayout(layout: PageLayout) {
@@ -24,7 +24,7 @@ function shouldClampBlockToContentColumn(block: LayoutBlock) {
 
 function clampBlockToCanvas(block: LayoutBlock, layout: PageLayout): LayoutBlock {
   const maxRight = shouldClampBlockToContentColumn(block)
-    ? Math.max(MIN_BLOCK_SIZE, layout.width - CONTENT_RIGHT_GUTTER)
+    ? Math.max(MIN_BLOCK_SIZE, layout.width - LAYOUT_CONTENT_RIGHT_GUTTER)
     : layout.width;
   const width = clamp(block.width, MIN_BLOCK_SIZE, maxRight);
   const height = clamp(block.height, MIN_BLOCK_SIZE, layout.height);
@@ -39,6 +39,29 @@ function clampBlockToCanvas(block: LayoutBlock, layout: PageLayout): LayoutBlock
     x: clamp(block.x, 0, maxX),
     y: clamp(block.y, 0, layout.height - height),
   };
+}
+
+export function constrainBlockPosition(
+  layout: PageLayout,
+  block: LayoutBlock,
+  position: { x: number; y: number },
+  options?: { snapToGrid?: boolean },
+) {
+  const shouldSnapToGrid = options?.snapToGrid ?? true;
+  const positionedBlock = clampBlockToCanvas({
+    ...block,
+    x: shouldSnapToGrid ? snapToGrid(position.x, layout.grid) : Math.round(position.x),
+    y: shouldSnapToGrid ? snapToGrid(position.y, layout.grid) : Math.round(position.y),
+  }, layout);
+
+  if (shouldSnapToGrid && layout.grid?.snap && layout.grid.size > 1) {
+    return {
+      x: Math.floor(positionedBlock.x / layout.grid.size) * layout.grid.size,
+      y: Math.floor(positionedBlock.y / layout.grid.size) * layout.grid.size,
+    };
+  }
+
+  return { x: positionedBlock.x, y: positionedBlock.y };
 }
 
 function blocksOverlap(a: LayoutBlock, b: LayoutBlock) {
@@ -104,27 +127,36 @@ export function normalizeLayoutGeometry(layout: PageLayout): PageLayout {
   };
 }
 
+export function constrainLayoutToCanvas(layout: PageLayout): PageLayout {
+  return {
+    ...layout,
+    blocks: layout.blocks.map((block) => clampBlockToCanvas(block, layout)),
+  };
+}
+
 export function updateBlockPosition(
   layout: PageLayout,
   blockId: string,
   position: { x: number; y: number },
-  options?: { snapToGrid?: boolean },
+  options?: { snapToGrid?: boolean; resolveCollisions?: boolean },
 ) {
-  const shouldSnapToGrid = options?.snapToGrid ?? true;
+  const targetBlock = layout.blocks.find((block) => block.id === blockId);
+  if (!targetBlock) {
+    return layout;
+  }
+
+  const constrainedPosition = constrainBlockPosition(layout, targetBlock, position, options);
+  const nextLayout = {
+    ...layout,
+    blocks: layout.blocks.map((block) => (
+      block.id === blockId
+        ? { ...block, ...constrainedPosition }
+        : block
+    )),
+  };
 
   return touchLayout(
-    normalizeLayoutGeometry({
-      ...layout,
-      blocks: layout.blocks.map((block) => (
-        block.id === blockId
-          ? {
-              ...block,
-              x: shouldSnapToGrid ? snapToGrid(position.x, layout.grid) : Math.round(position.x),
-              y: shouldSnapToGrid ? snapToGrid(position.y, layout.grid) : Math.round(position.y),
-            }
-          : block
-      )),
-    }),
+    options?.resolveCollisions === false ? nextLayout : normalizeLayoutGeometry(nextLayout),
   );
 }
 
