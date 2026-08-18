@@ -1,5 +1,6 @@
 import type { PlannerModule } from '../../core/registry/plannerModule';
 import { getBackgroundById } from '../../lib/assets/assetRegistry';
+import { resolvePlannerThemeId } from '../../lib/themes/themeRegistry';
 import { backgroundManifest } from './manifest';
 
 export const backgroundModule: PlannerModule = {
@@ -10,7 +11,7 @@ export const backgroundModule: PlannerModule = {
       const resolvedBackground = getBackgroundById(config.backgroundId, config.customBackground);
 
       return {
-        theme: config.theme ?? config.themeId,
+        theme: resolvePlannerThemeId(config.theme ?? config.themeId),
         background: {
           type: resolvedBackground.type,
           image: resolvedBackground.type === 'image' ? resolvedBackground.source : undefined,
