@@ -190,6 +190,23 @@
   gap: 8px;
 }
 
+@media (max-width: 1360px) {
+  .page-shell--workflow .preview-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .page-shell--workflow .preview-workbench__sidebar {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(160px, 1fr);
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .page-shell--workflow .preview-workbench__page-button {
+    min-width: 180px;
+  }
+}
+
 @media (max-width: 1180px) {
   .workflow-layout {
     grid-template-columns: 210px minmax(0, 1fr);
@@ -210,6 +227,10 @@
 
   .workflow-step {
     height: 100%;
+  }
+
+  .page-shell--workflow .preview-workbench__meta {
+    grid-template-columns: 1fr;
   }
 }
 
