@@ -8,3 +8,6 @@ dist
 npm-debug.log*
 *.tsbuildinfo
 planner-debug*.pdf
+vite.config.js
+vite.config.d.ts
+scripts/debug-pdf-export.mjs
