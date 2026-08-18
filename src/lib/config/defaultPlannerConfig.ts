@@ -15,6 +15,7 @@ import { getBackgroundsForTheme } from '../assets/assetRegistry';
 import { normalizeBackgroundOpacity } from '../assets/uploadBackground';
 import { createDefaultAstrologyConfig, normalizeAstrologyConfig } from '../astrology/astrologyConfig';
 import { createDefaultMoonPhaseConfig, normalizeMoonPhaseConfig } from '../moon/moonPhases';
+import { resolvePlannerThemeId } from '../themes/themeRegistry';
 
 export const DEFAULT_SECTION_ORDER: PlannerSectionType[] = [
   'index',
@@ -116,7 +117,7 @@ export function getSection(config: PlannerConfig, type: PlannerSectionType) {
 }
 
 export function syncPlannerConfig(config: PlannerConfig): PlannerConfig {
-  const nextTheme = config.theme ?? config.themeId ?? 'minimal';
+  const nextTheme = resolvePlannerThemeId(config.theme ?? config.themeId);
   const { modules, sections } = syncSectionsAndModules({
     ...config,
     modules: config.modules ?? createDefaultModulesConfig(),
