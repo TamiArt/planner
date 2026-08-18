@@ -73,14 +73,26 @@ export function useBuilderStickerActions(
     setStickerUploadNotice((current) => (current?.scope === scope ? null : current));
   }
 
+  async function removeStickerBlobsBestEffort(storageIds: string[]) {
+    if (storageIds.length === 0) {
+      return true;
+    }
+
+    try {
+      await removeStickerAssetBlobs(storageIds);
+      return true;
+    } catch (error) {
+      console.warn('Не удалось очистить локальные sticker assets.', error);
+      return false;
+    }
+  }
+
   async function cleanupObsoleteStickerStorage(nextConfig: PlannerConfig) {
     const currentStorageIds = getStickerStorageIds(getStickerModuleConfig(config));
     const nextStorageIds = new Set(getStickerStorageIds(getStickerModuleConfig(nextConfig)));
     const obsoleteStorageIds = currentStorageIds.filter((storageId) => !nextStorageIds.has(storageId));
 
-    if (obsoleteStorageIds.length > 0) {
-      await removeStickerAssetBlobs(obsoleteStorageIds);
-    }
+    return removeStickerBlobsBestEffort(obsoleteStorageIds);
   }
 
   async function handleAutoStickerUploadChange(event: ChangeEvent<HTMLInputElement>) {
@@ -97,7 +109,7 @@ export function useBuilderStickerActions(
       setStickerUploadNotice({ scope: pendingStickerCategory, tone: 'success', message });
       setFeedback(message);
     } catch (error) {
-      if (createdAssets.length > 0) await removeStickerAssetBlobs(createdAssets.map((item) => item.storageId));
+      await removeStickerBlobsBestEffort(createdAssets.map((item) => item.storageId));
       const message = error instanceof Error ? error.message : 'Не удалось загрузить sticker PNG.';
       setStickerUploadNotice({ scope: pendingStickerCategory, tone: 'error', message });
       setFeedback(message);
@@ -118,7 +130,7 @@ export function useBuilderStickerActions(
       setStickerUploadNotice({ scope: 'ready-sheet', tone: 'success', message });
       setFeedback(message);
     } catch (error) {
-      if (createdSheets.length > 0) await removeStickerAssetBlobs(createdSheets.map((item) => item.storageId));
+      await removeStickerBlobsBestEffort(createdSheets.map((item) => item.storageId));
       const message = error instanceof Error ? error.message : 'Не удалось загрузить PNG готового листа.';
       setStickerUploadNotice({ scope: 'ready-sheet', tone: 'error', message });
       setFeedback(message);
@@ -130,17 +142,27 @@ export function useBuilderStickerActions(
   async function handleRemoveAutoSticker(assetId: string) {
     const asset = (stickerConfig.autoPngs ?? []).find((item) => item.id === assetId);
     if (!asset) return;
-    await removeStickerAssetBlobs([asset.storageId]);
+
     clearStickerUploadNotice(asset.category);
     updateStickerConfig({ autoPngs: (stickerConfig.autoPngs ?? []).filter((item) => item.id !== assetId) });
+
+    const storageRemoved = await removeStickerBlobsBestEffort([asset.storageId]);
+    if (!storageRemoved) {
+      setFeedback(`Стикер "${asset.name}" удален из конфигурации, но браузер не смог очистить его локальный файл.`);
+    }
   }
 
   async function handleRemoveReadySheet(sheetId: string) {
     const sheet = (stickerConfig.readySheets ?? []).find((item) => item.id === sheetId);
     if (!sheet) return;
-    await removeStickerAssetBlobs([sheet.storageId]);
+
     clearStickerUploadNotice('ready-sheet');
     updateStickerConfig({ readySheets: (stickerConfig.readySheets ?? []).filter((item) => item.id !== sheetId) });
+
+    const storageRemoved = await removeStickerBlobsBestEffort([sheet.storageId]);
+    if (!storageRemoved) {
+      setFeedback(`Лист "${sheet.name}" удален из конфигурации, но браузер не смог очистить его локальный файл.`);
+    }
   }
 
   return {
