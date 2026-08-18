@@ -3,10 +3,16 @@ import type { PlannerThemeId } from '../../types/planner';
 
 const SUPPORTED_THEME_IDS = new Set<PlannerThemeId>(['minimal', 'soft', 'dark']);
 
-export function resolvePlannerThemeId(value: unknown): PlannerThemeId {
-  return typeof value === 'string' && SUPPORTED_THEME_IDS.has(value as PlannerThemeId)
-    ? value as PlannerThemeId
-    : 'minimal';
+function isPlannerThemeId(value: unknown): value is PlannerThemeId {
+  return typeof value === 'string' && SUPPORTED_THEME_IDS.has(value as PlannerThemeId);
+}
+
+export function resolvePlannerThemeId(value: unknown, fallback?: unknown): PlannerThemeId {
+  if (isPlannerThemeId(value)) {
+    return value;
+  }
+
+  return isPlannerThemeId(fallback) ? fallback : 'minimal';
 }
 
 export function getThemeById(themeId: string) {
