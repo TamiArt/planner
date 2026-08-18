@@ -34,6 +34,7 @@ export function WorkflowStepNav({ steps, activeStepId, onSelect }: WorkflowStepN
             key={step.id}
             type="button"
             onClick={() => onSelect(step.id)}
+            aria-current={isActive ? 'step' : undefined}
             className={clsx(
               'workflow-step',
               isActive && 'workflow-step--active',
