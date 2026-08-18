@@ -15,6 +15,23 @@ export function getBackgroundsForTheme(themeId: string, customBackground?: Backg
   return customBackground ? [customBackground, ...themedBackgrounds] : themedBackgrounds;
 }
 
+export function resolveBackgroundIdForTheme(
+  themeId: string,
+  currentBackgroundId: string,
+  customBackground?: BackgroundAsset,
+) {
+  if (customBackground?.id === currentBackgroundId) {
+    return currentBackgroundId;
+  }
+
+  const themedBackgrounds = getBackgroundsForTheme(themeId);
+  if (themedBackgrounds.some((background) => background.id === currentBackgroundId)) {
+    return currentBackgroundId;
+  }
+
+  return themedBackgrounds[0]?.id ?? customBackground?.id ?? currentBackgroundId;
+}
+
 export function getStickersByCategory(category: StickerCategory) {
   return stickerAssets.filter((sticker) => sticker.category === category);
 }
