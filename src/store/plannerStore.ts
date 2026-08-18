@@ -4,7 +4,7 @@ import type { BackgroundAsset, PlannerConfig, PlannerSectionConfig, PlannerSecti
 import { isLockedSectionType } from '../core/registry/moduleRegistry';
 import { applyPlannerPreset, type PlannerPresetId } from '../lib/config/plannerPresets';
 import { createDefaultPlannerConfig, syncPlannerConfig } from '../lib/config/defaultPlannerConfig';
-import { getBackgroundsForTheme } from '../lib/assets/assetRegistry';
+import { getBackgroundsForTheme, resolveBackgroundIdForTheme } from '../lib/assets/assetRegistry';
 import { isCustomBackground } from '../lib/assets/uploadBackground';
 import { resolvePlannerThemeId } from '../lib/themes/themeRegistry';
 
@@ -48,10 +48,11 @@ export const usePlannerStore = create<PlannerStoreState>()(
       setTheme: (themeId) =>
         set((state) => {
           const nextThemeId = resolvePlannerThemeId(themeId, state.config.theme);
-          const themeBackgrounds = getBackgroundsForTheme(nextThemeId, state.config.customBackground);
-          const nextBackgroundId = themeBackgrounds.some((background) => background.id === state.config.backgroundId)
-            ? state.config.backgroundId
-            : themeBackgrounds[0]?.id ?? state.config.backgroundId;
+          const nextBackgroundId = resolveBackgroundIdForTheme(
+            nextThemeId,
+            state.config.backgroundId,
+            state.config.customBackground,
+          );
 
           return {
             config: normalize({
