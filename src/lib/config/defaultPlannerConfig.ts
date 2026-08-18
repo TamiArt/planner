@@ -117,7 +117,7 @@ export function getSection(config: PlannerConfig, type: PlannerSectionType) {
 }
 
 export function syncPlannerConfig(config: PlannerConfig): PlannerConfig {
-  const nextTheme = resolvePlannerThemeId(config.theme ?? config.themeId);
+  const nextTheme = resolvePlannerThemeId(config.themeId, config.theme);
   const { modules, sections } = syncSectionsAndModules({
     ...config,
     modules: config.modules ?? createDefaultModulesConfig(),
