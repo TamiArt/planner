@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildAutoStickerPageGroups,
   DEFAULT_STICKER_MODULE_CONFIG,
+  getObsoleteStickerStorageIds,
   getStickerGeneratedPageCount,
   getStickerStorageIds,
   patchStickerModuleConfig,
@@ -69,6 +70,26 @@ test('counts ready sheets directly in ready-sheet mode', () => {
 
   assert.equal(getStickerGeneratedPageCount(config), 2);
   assert.deepEqual(getStickerStorageIds(config), ['ready-1', 'ready-2']);
+});
+
+test('returns only sticker blobs that are no longer referenced', () => {
+  const current: StickerModuleConfig = {
+    ...DEFAULT_STICKER_MODULE_CONFIG,
+    autoPngs: [uploadedSticker('keep', 'functional'), uploadedSticker('remove', 'decorative')],
+    readySheets: [
+      { id: 'sheet-1', name: 'one.png', storageId: 'ready-remove', previewSource: 'blob:1', width: 2048, height: 1536, sizeBytes: 10 },
+    ],
+  };
+  const next: StickerModuleConfig = {
+    ...DEFAULT_STICKER_MODULE_CONFIG,
+    autoPngs: [uploadedSticker('keep', 'functional')],
+    readySheets: [],
+  };
+
+  assert.deepEqual(
+    getObsoleteStickerStorageIds(current, next),
+    ['storage-remove', 'ready-remove'],
+  );
 });
 
 test('patches sticker config without mutating existing nested values', () => {
