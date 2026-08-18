@@ -166,6 +166,11 @@ export function getStickerStorageIds(config: StickerModuleConfig) {
   ];
 }
 
+export function getObsoleteStickerStorageIds(currentConfig: StickerModuleConfig, nextConfig: StickerModuleConfig) {
+  const nextStorageIds = new Set(getStickerStorageIds(nextConfig));
+  return getStickerStorageIds(currentConfig).filter((storageId) => !nextStorageIds.has(storageId));
+}
+
 export interface StickerAutoPageGroup {
   category: StickerCategory;
   assetIds: string[];
