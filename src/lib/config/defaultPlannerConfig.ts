@@ -11,7 +11,7 @@ import {
   syncSectionsAndModules,
 } from '../../core/config/moduleState';
 import { applyModuleLifecycle } from '../../core/lifecycle/applyModuleLifecycle';
-import { getBackgroundsForTheme } from '../assets/assetRegistry';
+import { getBackgroundById, resolveBackgroundIdForTheme } from '../assets/assetRegistry';
 import { normalizeBackgroundOpacity } from '../assets/uploadBackground';
 import { createDefaultAstrologyConfig, normalizeAstrologyConfig } from '../astrology/astrologyConfig';
 import { createDefaultMoonPhaseConfig, normalizeMoonPhaseConfig } from '../moon/moonPhases';
@@ -124,9 +124,8 @@ export function syncPlannerConfig(config: PlannerConfig): PlannerConfig {
   });
   const includeIndex = getSection({ ...config, sections }, 'index')?.enabled ?? true;
   const includeStickerSheets = getSection({ ...config, sections }, 'stickers')?.enabled ?? true;
-  const themeBackgrounds = getBackgroundsForTheme(nextTheme, config.customBackground);
-  const currentBackground =
-    themeBackgrounds.find((item) => item.id === config.backgroundId) ?? themeBackgrounds[0] ?? backgroundAssets[0];
+  const backgroundId = resolveBackgroundIdForTheme(nextTheme, config.backgroundId, config.customBackground);
+  const currentBackground = getBackgroundById(backgroundId, config.customBackground);
 
   const normalizedConfig = applyModuleLifecycle({
     ...config,
