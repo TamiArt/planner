@@ -17,6 +17,12 @@ export const DEFAULT_STICKER_AUTO_LAYOUT: StickerAutoLayoutConfig = {
   maxItemsPerPage: 6,
 };
 
+export const STICKER_AUTO_LAYOUT_LIMITS = {
+  itemSpacing: { min: 8, max: 80 },
+  pagePadding: { min: 24, max: 160 },
+  maxItemsPerPage: { min: 1, max: 12 },
+} as const;
+
 export const DEFAULT_STICKER_MODULE_CONFIG: StickerModuleConfig = {
   enabled: true,
   sourceMode: 'auto-png-pack',
@@ -25,6 +31,10 @@ export const DEFAULT_STICKER_MODULE_CONFIG: StickerModuleConfig = {
   autoPngs: [],
   readySheets: [],
   backgroundMode: 'transparent',
+};
+
+export type StickerModuleConfigPatch = Omit<Partial<StickerModuleConfig>, 'autoLayout'> & {
+  autoLayout?: Partial<StickerAutoLayoutConfig>;
 };
 
 function isStickerCategory(value: unknown): value is StickerCategory {
@@ -80,15 +90,38 @@ function normalizeReadySheets(readySheets?: unknown[]) {
     ));
 }
 
+function clampFiniteNumber(value: number, fallback: number, min: number, max: number) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, value));
+}
+
 function normalizeAutoLayout(autoLayout?: Partial<StickerAutoLayoutConfig>) {
   const itemSpacing = Number(autoLayout?.itemSpacing ?? DEFAULT_STICKER_AUTO_LAYOUT.itemSpacing);
   const pagePadding = Number(autoLayout?.pagePadding ?? DEFAULT_STICKER_AUTO_LAYOUT.pagePadding);
   const maxItemsPerPage = Number(autoLayout?.maxItemsPerPage ?? DEFAULT_STICKER_AUTO_LAYOUT.maxItemsPerPage);
 
   return {
-    itemSpacing: Number.isFinite(itemSpacing) ? itemSpacing : DEFAULT_STICKER_AUTO_LAYOUT.itemSpacing,
-    pagePadding: Number.isFinite(pagePadding) ? pagePadding : DEFAULT_STICKER_AUTO_LAYOUT.pagePadding,
-    maxItemsPerPage: Number.isFinite(maxItemsPerPage) ? maxItemsPerPage : DEFAULT_STICKER_AUTO_LAYOUT.maxItemsPerPage,
+    itemSpacing: clampFiniteNumber(
+      itemSpacing,
+      DEFAULT_STICKER_AUTO_LAYOUT.itemSpacing,
+      STICKER_AUTO_LAYOUT_LIMITS.itemSpacing.min,
+      STICKER_AUTO_LAYOUT_LIMITS.itemSpacing.max,
+    ),
+    pagePadding: clampFiniteNumber(
+      pagePadding,
+      DEFAULT_STICKER_AUTO_LAYOUT.pagePadding,
+      STICKER_AUTO_LAYOUT_LIMITS.pagePadding.min,
+      STICKER_AUTO_LAYOUT_LIMITS.pagePadding.max,
+    ),
+    maxItemsPerPage: Math.round(clampFiniteNumber(
+      maxItemsPerPage,
+      DEFAULT_STICKER_AUTO_LAYOUT.maxItemsPerPage ?? 6,
+      STICKER_AUTO_LAYOUT_LIMITS.maxItemsPerPage.min,
+      STICKER_AUTO_LAYOUT_LIMITS.maxItemsPerPage.max,
+    )),
   };
 }
 
@@ -108,7 +141,7 @@ export function getStickerModuleConfig(config: PlannerConfig): StickerModuleConf
 
 export function patchStickerModuleConfig(
   currentConfig: PlannerConfig,
-  patch: Partial<StickerModuleConfig>,
+  patch: StickerModuleConfigPatch,
 ): StickerModuleConfig {
   const current = getStickerModuleConfig(currentConfig);
 
@@ -160,6 +193,11 @@ export function getStickerStorageIds(config: StickerModuleConfig) {
     ...(config.autoPngs ?? []).map((item) => item.storageId),
     ...(config.readySheets ?? []).map((item) => item.storageId),
   ];
+}
+
+export function getObsoleteStickerStorageIds(currentConfig: StickerModuleConfig, nextConfig: StickerModuleConfig) {
+  const nextStorageIds = new Set(getStickerStorageIds(nextConfig));
+  return getStickerStorageIds(currentConfig).filter((storageId) => !nextStorageIds.has(storageId));
 }
 
 export interface StickerAutoPageGroup {

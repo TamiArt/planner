@@ -76,6 +76,7 @@ function patchModules(
       ? {
           ...moduleState,
           enabled: patch.enabled ?? moduleState.enabled,
+          count: typeof patch.count === 'number' ? patch.count : moduleState.count,
           options: {
             ...moduleState.options,
             ...(typeof patch.count === 'number' ? { count: patch.count } : {}),
@@ -95,6 +96,7 @@ export function applyPlannerPreset(baseConfig: PlannerConfig, presetId: PlannerP
   const backgrounds = getBackgroundsForTheme(preset.themeId);
   const keepCustomBackground = isCustomBackground(baseConfig.customBackground) && baseConfig.backgroundId === baseConfig.customBackground?.id;
   const backgroundId = keepCustomBackground ? baseConfig.backgroundId : backgrounds[0]?.id ?? baseConfig.backgroundId;
+  const modules = patchModules(baseConfig.modules, preset.modulePatches);
 
   return syncPlannerConfig({
     ...baseConfig,
@@ -103,6 +105,7 @@ export function applyPlannerPreset(baseConfig: PlannerConfig, presetId: PlannerP
     year: preset.mode === 'dated' ? referenceYear : undefined,
     themeId: preset.themeId,
     backgroundId,
-    modules: patchModules(baseConfig.modules, preset.modulePatches),
+    modules,
+    sections: [],
   });
 }

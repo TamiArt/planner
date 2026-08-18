@@ -1,5 +1,12 @@
-import { PDFDocument } from 'pdf-lib';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import {
+  formatPdfEditorTime as formatTime,
+  formatPdfFileSize as formatFileSize,
+  normalizeSourcePdfError,
+  openPdfFilePicker as openFilePicker,
+  readSourcePdf,
+  type UploadedSourcePdf,
+} from '../lib/pdf/pdfEditorUtils';
 import { InfoCard } from '../components/InfoCard';
 import { Panel } from '../components/Panel';
 import { StatusPill } from '../components/StatusPill';
@@ -19,12 +26,6 @@ import { buildPlannerPlan } from '../lib/navigation/buildPlannerPlan';
 import { usePlannerStore } from '../store/plannerStore';
 import type { PlannerConfig, PlannerMoonPhaseConfig } from '../types/planner';
 
-interface UploadedSourcePdf {
-  file: File;
-  bytes: Uint8Array;
-  pageCount: number;
-}
-
 interface MoonPhasePdfPreview {
   bytes: Uint8Array;
   url: string;
@@ -32,59 +33,6 @@ interface MoonPhasePdfPreview {
   annotatedPageCount: number;
   markerCount: number;
   totalPageCount: number;
-}
-
-function formatTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '--:--';
-  }
-
-  return date.toLocaleTimeString('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatFileSize(sizeBytes: number) {
-  if (sizeBytes >= 1_000_000) {
-    return `${(sizeBytes / 1_000_000).toFixed(2)} MB`;
-  }
-
-  return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
-}
-
-function openFilePicker(input: HTMLInputElement | null) {
-  if (!input) {
-    return;
-  }
-
-  input.value = '';
-
-  const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
-  if (typeof pickerInput.showPicker === 'function') {
-    try {
-      pickerInput.showPicker();
-      return;
-    } catch {
-      // Fall back to click when showPicker is restricted.
-    }
-  }
-
-  input.click();
-}
-
-function normalizeSourcePdfError(error: unknown) {
-  if (error instanceof Error && /encrypted/i.test(error.message)) {
-    return 'Исходный PDF защищен паролем или шифрованием. Такой файл пока нельзя редактировать.';
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return 'Не удалось прочитать исходный PDF.';
 }
 
 function createEffectiveConfig(config: PlannerConfig, year: number, moonPhases: PlannerMoonPhaseConfig): PlannerConfig {
@@ -211,17 +159,7 @@ export function MoonPhasePdfEditorPage() {
     }
 
     try {
-      if (!(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
-        throw new Error('Выберите PDF-файл.');
-      }
-
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const pdfDoc = await PDFDocument.load(bytes);
-      const nextSourcePdf = {
-        file,
-        bytes,
-        pageCount: pdfDoc.getPageCount(),
-      } satisfies UploadedSourcePdf;
+      const nextSourcePdf = await readSourcePdf(file);
 
       setSourcePdf(nextSourcePdf);
       replacePreview(null);

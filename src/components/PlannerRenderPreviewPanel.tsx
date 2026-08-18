@@ -17,7 +17,7 @@ function collectPreviewPageIds(plan: PlannerDocumentPlan) {
   return plan.pages.map((page) => page.id);
 }
 
-export function PlannerRenderPreviewPanel({ config, plan, preferredSectionType }: PlannerRenderPreviewPanelProps) {
+export function PlannerRenderPreviewPanel({ config, preferredSectionType }: PlannerRenderPreviewPanelProps) {
   const renderModel = useMemo(() => buildPlannerRenderModel(config), [config]);
   const previewPageIds = useMemo(() => collectPreviewPageIds(renderModel.plan), [renderModel.plan]);
   const [selectedPageId, setSelectedPageId] = useState(previewPageIds[0] ?? renderModel.pages[0]?.page.id ?? '');
@@ -104,7 +104,7 @@ export function PlannerRenderPreviewPanel({ config, plan, preferredSectionType }
             <InfoCard label="Раздел" value={selectedPage.page.sectionType} />
             <InfoCard label="Размер" value={`${renderModel.width} × ${renderModel.height}`} />
             <InfoCard label="Ссылки на странице" value={`${activeLinks.length}`} />
-            <InfoCard label="Всего страниц" value={`${plan.pages.length}`} />
+            <InfoCard label="Всего страниц" value={`${renderModel.plan.pages.length}`} />
             <InfoCard label="Тема" value={renderModel.theme.name} />
           </div>
         </div>

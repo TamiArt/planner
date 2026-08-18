@@ -1,4 +1,3 @@
-import { PDFDocument } from 'pdf-lib';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { InfoCard } from '../components/InfoCard';
 import { Panel } from '../components/Panel';
@@ -12,6 +11,14 @@ import {
   prepareStickerAppendExportTarget,
 } from '../lib/export/appendStickerPagesPdf';
 import { savePdfBytes } from '../core/export/PdfExportEngine';
+import {
+  formatPdfEditorTime as formatTime,
+  formatPdfFileSize as formatFileSize,
+  normalizeSourcePdfError,
+  openPdfFilePicker as openFilePicker,
+  readSourcePdf,
+  type UploadedSourcePdf,
+} from '../lib/pdf/pdfEditorUtils';
 import { removeStickerAssetBlobs } from '../lib/stickers/stickerAssetStorage';
 import {
   getStickerGeneratedPageCount,
@@ -25,71 +32,12 @@ import { getThemeById } from '../lib/themes/themeRegistry';
 import { usePlannerStore } from '../store/plannerStore';
 import type { StickerCategory } from '../types/planner';
 
-interface UploadedSourcePdf {
-  file: File;
-  bytes: Uint8Array;
-  pageCount: number;
-}
-
 interface FinalPdfPreview {
   bytes: Uint8Array;
   url: string;
   byteLength: number;
   appendedPageCount: number;
   totalPageCount: number;
-}
-
-function formatTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '--:--';
-  }
-
-  return date.toLocaleTimeString('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatFileSize(sizeBytes: number) {
-  if (sizeBytes >= 1_000_000) {
-    return `${(sizeBytes / 1_000_000).toFixed(2)} MB`;
-  }
-
-  return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
-}
-
-function openFilePicker(input: HTMLInputElement | null) {
-  if (!input) {
-    return;
-  }
-
-  input.value = '';
-
-  const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
-  if (typeof pickerInput.showPicker === 'function') {
-    try {
-      pickerInput.showPicker();
-      return;
-    } catch {
-      // Fall back to click when showPicker is restricted.
-    }
-  }
-
-  input.click();
-}
-
-function normalizeSourcePdfError(error: unknown) {
-  if (error instanceof Error && /encrypted/i.test(error.message)) {
-    return 'Исходный PDF защищен паролем или шифрованием. Такой файл пока нельзя дополнить.';
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return 'Не удалось прочитать исходный PDF.';
 }
 
 function getStickerSourceModeLabel(sourceMode: ReturnType<typeof getStickerModuleConfig>['sourceMode']) {
@@ -254,23 +202,12 @@ export function StickerPdfAppenderPage() {
     }
 
     try {
-      if (!(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
-        throw new Error('Выберите PDF-файл.');
-      }
-
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const pdfDoc = await PDFDocument.load(bytes);
-      const nextSourcePdf = {
-        file,
-        bytes,
-        pageCount: pdfDoc.getPageCount(),
-      } satisfies UploadedSourcePdf;
-
+      const nextSourcePdf = await readSourcePdf(file);
       setSourcePdf(nextSourcePdf);
       setFeedback(`Исходный PDF "${file.name}" загружен: ${nextSourcePdf.pageCount} стр.`);
     } catch (error) {
       setSourcePdf(null);
-      setFeedback(normalizeSourcePdfError(error));
+      setFeedback(normalizeSourcePdfError(error, 'append'));
     } finally {
       event.target.value = '';
     }
