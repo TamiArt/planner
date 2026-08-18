@@ -27,6 +27,10 @@ export const DEFAULT_STICKER_MODULE_CONFIG: StickerModuleConfig = {
   backgroundMode: 'transparent',
 };
 
+export type StickerModuleConfigPatch = Omit<Partial<StickerModuleConfig>, 'autoLayout'> & {
+  autoLayout?: Partial<StickerAutoLayoutConfig>;
+};
+
 function isStickerCategory(value: unknown): value is StickerCategory {
   return value === 'functional' || value === 'decorative' || value === 'emoji' || value === 'icons';
 }
@@ -108,7 +112,7 @@ export function getStickerModuleConfig(config: PlannerConfig): StickerModuleConf
 
 export function patchStickerModuleConfig(
   currentConfig: PlannerConfig,
-  patch: Partial<StickerModuleConfig>,
+  patch: StickerModuleConfigPatch,
 ): StickerModuleConfig {
   const current = getStickerModuleConfig(currentConfig);
 
