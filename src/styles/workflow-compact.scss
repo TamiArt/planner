@@ -88,6 +88,8 @@
   }
 
   &__badge {
+    grid-column: 2;
+    justify-self: start;
     min-height: 24px;
     padding-inline: 8px;
     font-size: 0.66rem;
