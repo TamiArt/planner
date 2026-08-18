@@ -4,9 +4,11 @@ import { BuilderWorkflowPage } from '../pages/BuilderWorkflowPage';
 import { MoonPhasePdfEditorPage } from '../pages/MoonPhasePdfEditorPage';
 import { StickerPdfAppenderPage } from '../pages/StickerPdfAppenderPage';
 import { TemplatesPage } from '../pages/TemplatesPage';
+import { usePlannerStorageSync } from '../store/usePlannerStorageSync';
 import { resolveAppView } from './routeResolver';
 
 export function App() {
+  usePlannerStorageSync();
   const [view, setView] = useState(() => resolveAppView(window.location.hash));
 
   useEffect(() => {
