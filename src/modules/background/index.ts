@@ -11,7 +11,7 @@ export const backgroundModule: PlannerModule = {
       const resolvedBackground = getBackgroundById(config.backgroundId, config.customBackground);
 
       return {
-        theme: resolvePlannerThemeId(config.theme ?? config.themeId),
+        theme: resolvePlannerThemeId(config.themeId, config.theme),
         background: {
           type: resolvedBackground.type,
           image: resolvedBackground.type === 'image' ? resolvedBackground.source : undefined,
