@@ -1,13 +1,11 @@
-import { PDFDocument } from 'pdf-lib';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { AstrologyOverlaySettingsPanel } from '../components/astrology/AstrologyOverlaySettingsPanel';
+import { AstrologyPdfPreviewPanel } from '../components/astrology/AstrologyPdfPreviewPanel';
 import { InfoCard } from '../components/InfoCard';
 import { Panel } from '../components/Panel';
 import { StatusPill } from '../components/StatusPill';
 import {
   ASTROLOGY_CALCULATION_TIME_LABEL,
-  ASTROLOGY_ICON_STYLE_LABEL,
-  ASTROLOGY_LINE_DENSITY_LABELS,
-  ASTROLOGY_LINE_PRESET_LABELS,
   ASTROLOGY_REFERENCE_LABEL,
   ASTROLOGY_SOURCE_LABEL,
   getAstrologyCity,
@@ -16,7 +14,6 @@ import {
 } from '../lib/astrology/astrologyConfig';
 import { CAPITAL_CITY_OPTIONS } from '../lib/astrology/capitalCities';
 import {
-  ASTROLOGY_LAYER_LABELS,
   calculateAstrologyDataForYear,
   hasAstrologyDataForConfig,
 } from '../lib/astrology/jyotishDaily';
@@ -31,23 +28,23 @@ import {
   prepareAstrologyAndStickersPdfExportTarget,
 } from '../lib/export/annotateAstrologyAndStickersPdf';
 import { savePdfBytes } from '../core/export/PdfExportEngine';
+import {
+  formatPdfEditorTime as formatTime,
+  formatPdfFileSize as formatFileSize,
+  normalizeSourcePdfError,
+  openPdfFilePicker as openFilePicker,
+  readSourcePdf,
+  type UploadedSourcePdf,
+} from '../lib/pdf/pdfEditorUtils';
 import { getStickerGeneratedPageCount, getStickerModuleConfig } from '../lib/stickers/stickerModuleConfig';
 import { buildPlannerPlan } from '../lib/navigation/buildPlannerPlan';
 import { usePlannerStore } from '../store/plannerStore';
 import type {
-  AstrologyLineDensity,
-  AstrologyLinePresetId,
   PlannerAstrologyConfig,
   PlannerAstrologyCustomCity,
   PlannerAstrologyLayers,
   PlannerConfig,
 } from '../types/planner';
-
-interface UploadedSourcePdf {
-  file: File;
-  bytes: Uint8Array;
-  pageCount: number;
-}
 
 interface AstrologyPdfPreview {
   bytes: Uint8Array;
@@ -58,59 +55,6 @@ interface AstrologyPdfPreview {
   iconCount: number;
   appendedPageCount: number;
   totalPageCount: number;
-}
-
-function formatTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '--:--';
-  }
-
-  return date.toLocaleTimeString('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatFileSize(sizeBytes: number) {
-  if (sizeBytes >= 1_000_000) {
-    return `${(sizeBytes / 1_000_000).toFixed(2)} MB`;
-  }
-
-  return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
-}
-
-function openFilePicker(input: HTMLInputElement | null) {
-  if (!input) {
-    return;
-  }
-
-  input.value = '';
-
-  const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
-  if (typeof pickerInput.showPicker === 'function') {
-    try {
-      pickerInput.showPicker();
-      return;
-    } catch {
-      // Fall back to click when showPicker is restricted.
-    }
-  }
-
-  input.click();
-}
-
-function normalizeSourcePdfError(error: unknown) {
-  if (error instanceof Error && /encrypted/i.test(error.message)) {
-    return 'Исходный PDF защищен паролем или шифрованием. Такой файл пока нельзя редактировать.';
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return 'Не удалось прочитать исходный PDF.';
 }
 
 function getAppendedStickerPageCount(result: unknown) {
@@ -178,7 +122,6 @@ export function AstrologyPdfEditorPage() {
   const mismatchWarning = sourcePdf && sourcePdf.pageCount !== expectedPageCount
     ? `В текущем конфиге ${expectedPageCount} стр., а в PDF ${sourcePdf.pageCount} стр. Астрология накладывается по номерам страниц текущего конфига.`
     : null;
-  const previewUrl = preview ? `${preview.url}#toolbar=1&navpanes=0&view=FitH` : null;
 
   useEffect(() => {
     function rehydrateStore() {
@@ -356,18 +299,7 @@ export function AstrologyPdfEditorPage() {
     }
 
     try {
-      if (!(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
-        throw new Error('Выберите PDF-файл.');
-      }
-
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const pdfDoc = await PDFDocument.load(bytes);
-      const nextSourcePdf = {
-        file,
-        bytes,
-        pageCount: pdfDoc.getPageCount(),
-      } satisfies UploadedSourcePdf;
-
+      const nextSourcePdf = await readSourcePdf(file);
       setSourcePdf(nextSourcePdf);
       setFeedback(`PDF "${file.name}" загружен: ${nextSourcePdf.pageCount} стр.`);
     } catch (error) {
@@ -721,107 +653,15 @@ export function AstrologyPdfEditorPage() {
         </div>
 
         <div className="builder-column">
-          <Panel title="Слои наложения" eyebrow="Состав">
-            <p className="muted-copy">
-              Эти же слои используются в обычном PDF-экспорте: month остаётся компактным, а для week/day можно
-              отдельно выбрать full preset, compact preset или текстовый режим с короткими подписями.
-            </p>
-
-            <div className="form-grid workflow-panel__space">
-              <label className="field">
-                <span className="field__label">Weekly preset</span>
-                <select
-                  value={astrology.display.weekPreset}
-                  onChange={(event) => updateAstrologyDisplay('weekPreset', event.target.value as AstrologyLinePresetId)}
-                  className="select"
-                >
-                  {(Object.entries(ASTROLOGY_LINE_PRESET_LABELS) as Array<[AstrologyLinePresetId, string]>).map(([preset, label]) => (
-                    <option key={preset} value={preset}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field">
-                <span className="field__label">Daily preset</span>
-                <select
-                  value={astrology.display.dayPreset}
-                  onChange={(event) => updateAstrologyDisplay('dayPreset', event.target.value as AstrologyLinePresetId)}
-                  className="select"
-                >
-                  {(Object.entries(ASTROLOGY_LINE_PRESET_LABELS) as Array<[AstrologyLinePresetId, string]>).map(([preset, label]) => (
-                    <option key={preset} value={preset}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field">
-                <span className="field__label">Плотность строки</span>
-                <select
-                  value={astrology.display.lineDensity}
-                  onChange={(event) => updateAstrologyDisplay('lineDensity', event.target.value as AstrologyLineDensity)}
-                  className="select"
-                >
-                  {(Object.entries(ASTROLOGY_LINE_DENSITY_LABELS) as Array<[AstrologyLineDensity, string]>).map(([density, label]) => (
-                    <option key={density} value={density}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="workflow-panel__space">
-              <p className="small-label">Что показывать в астростроке</p>
-              <p className="muted-copy">
-                Эти кнопки включают и выключают элементы, которые попадут в weekly и daily астрологическую строку.
-              </p>
-            </div>
-
-            <div className="pill-list workflow-panel__space astro-layer-pills">
-              {(Object.entries(ASTROLOGY_LAYER_LABELS) as Array<[keyof PlannerAstrologyLayers, string]>).map(([layer, label]) => (
-                <button
-                  key={layer}
-                  type="button"
-                  onClick={() => handleAstrologyLayerToggle(layer)}
-                  className={`pill ${astrology.layers[layer] ? 'pill--active' : ''}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="summary-grid workflow-panel__space">
-              <InfoCard label="Расчёт" value={ASTROLOGY_CALCULATION_TIME_LABEL} />
-              <InfoCard label="Иконки" value={ASTROLOGY_ICON_STYLE_LABEL} />
-              <InfoCard label="Weekly строка" value={ASTROLOGY_LINE_PRESET_LABELS[astrology.display.weekPreset]} />
-              <InfoCard label="Daily строка" value={ASTROLOGY_LINE_PRESET_LABELS[astrology.display.dayPreset]} />
-              <InfoCard label="Плотность" value={ASTROLOGY_LINE_DENSITY_LABELS[astrology.display.lineDensity]} />
-              <InfoCard label="Легенда" value={astrology.includeLegend ? 'включена' : 'выключена'} />
-              <InfoCard label="Записей" value={`${astrology.data?.entries.length ?? 0}`} />
-              <InfoCard label="Sticker pages" value={stickerPageCount > 0 ? `${stickerPageCount}` : 'нет'} />
-            </div>
-
-            <div className="workflow-mode-toggle workflow-panel__space">
-              <button
-                type="button"
-                onClick={() => updateAstrologyConfig({ includeLegend: true })}
-                className={`workflow-mode-toggle__button ${astrology.includeLegend ? 'workflow-mode-toggle__button--active' : ''}`}
-              >
-                легенда в PDF
-              </button>
-              <button
-                type="button"
-                onClick={() => updateAstrologyConfig({ includeLegend: false })}
-                className={`workflow-mode-toggle__button ${!astrology.includeLegend ? 'workflow-mode-toggle__button--active' : ''}`}
-              >
-                без легенды
-              </button>
-            </div>
-          </Panel>
+          <AstrologyOverlaySettingsPanel
+            astrology={astrology}
+            stickerPageCount={stickerPageCount}
+            onWeekPresetChange={(preset) => updateAstrologyDisplay('weekPreset', preset)}
+            onDayPresetChange={(preset) => updateAstrologyDisplay('dayPreset', preset)}
+            onLineDensityChange={(density) => updateAstrologyDisplay('lineDensity', density)}
+            onLayerToggle={handleAstrologyLayerToggle}
+            onIncludeLegendChange={(includeLegend) => updateAstrologyConfig({ includeLegend })}
+          />
 
           <Panel title="Наложение на PDF" eyebrow="Шаг 3">
             <p className="muted-copy">
@@ -927,76 +767,13 @@ export function AstrologyPdfEditorPage() {
         </div>
       </div>
 
-      <div className="preview-section">
-        <Panel title="Предпросмотр итогового PDF" eyebrow="Перед сохранением">
-          <p className="muted-copy">
-            Ниже показывается уже собранный итоговый файл: загруженный PDF с наложенной астрологией по текущему конфигу,
-            а при включённом комбинированном режиме ещё и с добавленными `sticker pages`.
-            Предпросмотр обновляется автоматически после загрузки PDF, расчёта астрологии, смены слоёв и изменения режима.
-          </p>
-
-          {sourcePdf ? (
-            <div className="workflow-panel__space">
-              <div className="summary-grid">
-                <InfoCard label="Исходных страниц" value={`${sourcePdf.pageCount}`} />
-                <InfoCard label="Страниц с метками" value={preview ? `${preview.annotatedPageCount}` : isPreviewLoading ? 'собирается' : '—'} />
-                <InfoCard label="Текстовых меток" value={preview ? `${preview.markerCount}` : isPreviewLoading ? 'считаем' : '—'} />
-                <InfoCard label="Иконок" value={preview ? `${preview.iconCount}` : isPreviewLoading ? 'считаем' : '—'} />
-                <InfoCard label="Sticker pages" value={includeStickerPages ? (preview ? `${preview.appendedPageCount}` : isPreviewLoading ? 'считаем' : '—') : 'не добавляем'} />
-                <InfoCard label="Размер предпросмотра" value={preview ? formatFileSize(preview.byteLength) : isPreviewLoading ? 'собирается' : '—'} />
-              </div>
-
-              <div className="message-stack">
-                {isPreviewLoading ? (
-                  <p className="message message--warning">
-                    {includeStickerPages
-                      ? 'Собираем предпросмотр итогового PDF с астрологией и sticker pages...'
-                      : 'Собираем предпросмотр итогового PDF с астрологией...'}
-                  </p>
-                ) : null}
-
-                {previewError ? (
-                  <p className="message message--error">{previewError}</p>
-                ) : null}
-
-                {preview && !previewError ? (
-                  <p className="message message--success">
-                    {includeStickerPages
-                      ? `Предпросмотр готов: ${preview.markerCount} текстовых меток, ${preview.iconCount} иконок и ${preview.appendedPageCount} sticker pages.`
-                      : `Предпросмотр готов: добавлено ${preview.markerCount} текстовых меток и ${preview.iconCount} иконок на ${preview.annotatedPageCount} стр.`}
-                  </p>
-                ) : null}
-              </div>
-
-              {preview ? (
-                <div className="pdf-preview-panel">
-                  <div className="pdf-preview-panel__actions">
-                    <a href={preview.url} target="_blank" rel="noreferrer" className="button button--secondary">
-                      Открыть итоговый PDF в новой вкладке
-                    </a>
-                  </div>
-
-                  <div className="pdf-preview-panel__frame">
-                    <iframe
-                      key={preview.url}
-                      src={previewUrl ?? undefined}
-                      title="Предпросмотр итогового PDF с астрологией"
-                      className="pdf-preview-panel__viewer"
-                    />
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="message-stack workflow-panel__space">
-              <p className="message message--warning">
-                Сначала загрузите исходный PDF. После этого здесь появится его итоговый предпросмотр
-                {includeStickerPages ? ' с астрологией и sticker pages.' : ' с астрологией.'}
-              </p>
-            </div>
-          )}
-        </Panel>
-      </div>
+      <AstrologyPdfPreviewPanel
+        sourcePageCount={sourcePdf?.pageCount}
+        preview={preview}
+        isLoading={isPreviewLoading}
+        error={previewError}
+        includeStickerPages={includeStickerPages}
+      />
 
       <input
         ref={pdfInputRef}
