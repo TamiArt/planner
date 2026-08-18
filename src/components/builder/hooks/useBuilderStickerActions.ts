@@ -3,9 +3,9 @@ import { openFilePicker } from '../builderUtils';
 import { removeStickerAssetBlobs } from '../../../lib/stickers/stickerAssetStorage';
 import {
   buildAutoStickerPageGroups,
+  getObsoleteStickerStorageIds,
   getStickerGeneratedPageCount,
   getStickerModuleConfig,
-  getStickerStorageIds,
   patchStickerModuleConfig,
 } from '../../../lib/stickers/stickerModuleConfig';
 import { getStickerCategoryMeta, STICKER_CATEGORY_ORDER } from '../../../lib/stickers/stickerCatalog';
@@ -88,9 +88,10 @@ export function useBuilderStickerActions(
   }
 
   async function cleanupObsoleteStickerStorage(nextConfig: PlannerConfig) {
-    const currentStorageIds = getStickerStorageIds(getStickerModuleConfig(config));
-    const nextStorageIds = new Set(getStickerStorageIds(getStickerModuleConfig(nextConfig)));
-    const obsoleteStorageIds = currentStorageIds.filter((storageId) => !nextStorageIds.has(storageId));
+    const obsoleteStorageIds = getObsoleteStickerStorageIds(
+      getStickerModuleConfig(config),
+      getStickerModuleConfig(nextConfig),
+    );
 
     return removeStickerBlobsBestEffort(obsoleteStorageIds);
   }
