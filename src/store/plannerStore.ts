@@ -6,6 +6,7 @@ import { applyPlannerPreset, type PlannerPresetId } from '../lib/config/plannerP
 import { createDefaultPlannerConfig, syncPlannerConfig } from '../lib/config/defaultPlannerConfig';
 import { getBackgroundsForTheme } from '../lib/assets/assetRegistry';
 import { isCustomBackground } from '../lib/assets/uploadBackground';
+import { resolvePlannerThemeId } from '../lib/themes/themeRegistry';
 
 interface PlannerStoreState {
   config: PlannerConfig;
@@ -46,7 +47,8 @@ export const usePlannerStore = create<PlannerStoreState>()(
         })),
       setTheme: (themeId) =>
         set((state) => {
-          const themeBackgrounds = getBackgroundsForTheme(themeId, state.config.customBackground);
+          const nextThemeId = resolvePlannerThemeId(themeId, state.config.theme);
+          const themeBackgrounds = getBackgroundsForTheme(nextThemeId, state.config.customBackground);
           const nextBackgroundId = themeBackgrounds.some((background) => background.id === state.config.backgroundId)
             ? state.config.backgroundId
             : themeBackgrounds[0]?.id ?? state.config.backgroundId;
@@ -54,7 +56,8 @@ export const usePlannerStore = create<PlannerStoreState>()(
           return {
             config: normalize({
               ...state.config,
-              themeId,
+              theme: nextThemeId,
+              themeId: nextThemeId,
               backgroundId: nextBackgroundId,
             }),
             lastSavedAt: createTimestamp(),
