@@ -7,6 +7,7 @@ import {
   getStickerGeneratedPageCount,
   getStickerStorageIds,
   patchStickerModuleConfig,
+  STICKER_AUTO_LAYOUT_LIMITS,
 } from '../src/lib/stickers/stickerModuleConfig';
 import { createDefaultPlannerConfig } from '../src/lib/config/defaultPlannerConfig';
 import type { StickerModuleConfig, StickerUploadAssetMeta } from '../src/types/planner';
@@ -90,6 +91,21 @@ test('returns only sticker blobs that are no longer referenced', () => {
     getObsoleteStickerStorageIds(current, next),
     ['storage-remove', 'ready-remove'],
   );
+});
+
+test('clamps imported sticker layout values to the same limits as the UI', () => {
+  const planner = createDefaultPlannerConfig();
+  const patched = patchStickerModuleConfig(planner, {
+    autoLayout: {
+      itemSpacing: -500,
+      pagePadding: 9999,
+      maxItemsPerPage: -3,
+    },
+  });
+
+  assert.equal(patched.autoLayout.itemSpacing, STICKER_AUTO_LAYOUT_LIMITS.itemSpacing.min);
+  assert.equal(patched.autoLayout.pagePadding, STICKER_AUTO_LAYOUT_LIMITS.pagePadding.max);
+  assert.equal(patched.autoLayout.maxItemsPerPage, STICKER_AUTO_LAYOUT_LIMITS.maxItemsPerPage.min);
 });
 
 test('patches sticker config without mutating existing nested values', () => {
