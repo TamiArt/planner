@@ -205,6 +205,10 @@ export function LayoutCanvas({
   }
 
   function handleBlockKeyDown(event: KeyboardEvent<HTMLDivElement>, blockId: string) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
     if ((event.key === 'Delete' || event.key === 'Backspace') && canDirectEdit && blockId === selectedBlockId) {
       event.preventDefault();
       deleteBlock(blockId);
