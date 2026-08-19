@@ -63,8 +63,26 @@
   background: rgba(255, 255, 255, 0.82);
 }
 
+.layout-editor__surface-frame {
+  position: relative;
+  padding-top: 26px;
+}
+
+.layout-editor__surface-label {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .layout-editor__surface {
   isolation: isolate;
+  outline: 2px solid rgba(18, 26, 43, 0.3);
+  outline-offset: 2px;
 }
 
 .layout-editor__paper-guide {
@@ -103,6 +121,14 @@
   overflow: visible;
   padding: 0;
   outline: none;
+}
+
+.layout-editor__block--draggable {
+  touch-action: none;
+}
+
+.layout-editor__block--locked {
+  cursor: not-allowed;
 }
 
 .layout-editor__block-label {
@@ -225,6 +251,8 @@
   z-index: 120;
   display: grid;
   width: min(230px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   padding: 8px;
   border: 1px solid rgba(18, 26, 43, 0.16);
   border-radius: 14px;
@@ -269,12 +297,21 @@
     align-items: stretch;
   }
 
+  .layout-editor__paper-title {
+    flex: 1 1 100%;
+  }
+
   .layout-editor__paper-button {
     flex: 1 1 180px;
   }
 
   .layout-editor__canvas-help {
     display: none;
+  }
+
+  .layout-editor__surface-label {
+    left: 0;
+    right: auto;
   }
 
   .layout-editor__resize-handle {

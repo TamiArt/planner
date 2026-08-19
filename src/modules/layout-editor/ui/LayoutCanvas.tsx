@@ -16,6 +16,9 @@ import { getA4GuideRect, getA4PaperLabel, type LayoutPaperOrientation } from '..
 import { normalizePlannerLayouts } from '../model/normalizeLayouts';
 
 const RESIZE_HANDLES: LayoutResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const CONTEXT_MENU_WIDTH = 230;
+const CONTEXT_MENU_HEIGHT = 250;
+const CONTEXT_MENU_MARGIN = 12;
 
 interface CanvasContextMenuState {
   clientX: number;
@@ -30,6 +33,13 @@ function getEditorOptions(config: PlannerModulePanelProps['config']) {
     paperOrientation: options.paperOrientation === 'portrait' ? 'portrait' as const : 'landscape' as const,
     showPaperBounds: options.showPaperBounds !== false,
   };
+}
+
+function clampMenuCoordinate(value: number, viewportSize: number, menuSize: number) {
+  return Math.max(
+    CONTEXT_MENU_MARGIN,
+    Math.min(value, Math.max(CONTEXT_MENU_MARGIN, viewportSize - menuSize - CONTEXT_MENU_MARGIN)),
+  );
 }
 
 export function LayoutCanvas({
@@ -88,7 +98,7 @@ export function LayoutCanvas({
     }
 
     const block = layout.blocks.find((item) => item.id === blockId);
-    if (!block) {
+    if (!block || block.locked) {
       return;
     }
 
@@ -97,8 +107,12 @@ export function LayoutCanvas({
       return;
     }
 
+    const blockIndex = layout.blocks.findIndex((item) => item.id === blockId);
     const nextLayout = removeLayoutBlock(layout, blockId);
-    commitLayout(nextLayout, nextLayout.blocks[0]?.id ?? '');
+    const nextSelectedBlockId = nextLayout.blocks[Math.min(blockIndex, nextLayout.blocks.length - 1)]?.id
+      ?? nextLayout.blocks[0]?.id
+      ?? '';
+    commitLayout(nextLayout, nextSelectedBlockId);
   }
 
   const drag = useLayoutBlockDrag({
@@ -128,6 +142,10 @@ export function LayoutCanvas({
       return;
     }
 
+    const focusFrame = window.requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    });
+
     function closeMenu(event: PointerEvent) {
       if (menuRef.current?.contains(event.target as Node)) {
         return;
@@ -150,6 +168,7 @@ export function LayoutCanvas({
     window.addEventListener('resize', closeOnViewportChange);
     window.addEventListener('scroll', closeOnViewportChange, true);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       window.removeEventListener('pointerdown', closeMenu);
       window.removeEventListener('keydown', closeOnKey);
       window.removeEventListener('resize', closeOnViewportChange);
@@ -169,8 +188,8 @@ export function LayoutCanvas({
     }
 
     setContextMenu({
-      clientX: Math.min(event.clientX, window.innerWidth - 230),
-      clientY: Math.min(event.clientY, window.innerHeight - 250),
+      clientX: clampMenuCoordinate(event.clientX, window.innerWidth, CONTEXT_MENU_WIDTH),
+      clientY: clampMenuCoordinate(event.clientY, window.innerHeight, CONTEXT_MENU_HEIGHT),
       canvasX: ((event.clientX - rect.left) / rect.width) * layout.width,
       canvasY: ((event.clientY - rect.top) / rect.height) * layout.height,
     });
@@ -186,7 +205,7 @@ export function LayoutCanvas({
   }
 
   function handleBlockKeyDown(event: KeyboardEvent<HTMLDivElement>, blockId: string) {
-    if ((event.key === 'Delete' || event.key === 'Backspace') && canDirectEdit) {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && canDirectEdit && blockId === selectedBlockId) {
       event.preventDefault();
       deleteBlock(blockId);
       return;
@@ -200,8 +219,8 @@ export function LayoutCanvas({
 
   return (
     <div className="layout-editor__canvas">
-      <div className="layout-editor__paper-controls" aria-label="Параметры границ листа A4">
-        <span className="layout-editor__paper-title">Лист A4</span>
+      <div className="layout-editor__paper-controls" aria-label="Параметры ориентира A4">
+        <span className="layout-editor__paper-title">Ориентир A4 · не меняет PDF</span>
         <button
           type="button"
           onClick={() => updateEditorOptions({ paperOrientation: 'portrait' })}
@@ -222,7 +241,7 @@ export function LayoutCanvas({
             checked={editorOptions.showPaperBounds}
             onChange={(event) => updateEditorOptions({ showPaperBounds: event.target.checked })}
           />
-          <span>Показывать границы</span>
+          <span>Показывать ориентир</span>
         </label>
       </div>
 
@@ -235,101 +254,107 @@ export function LayoutCanvas({
         </div>
       ) : null}
 
-      <div
-        ref={surfaceRef}
-        className="layout-editor__surface"
-        onContextMenu={handleSurfaceContextMenu}
-        style={{
-          '--layout-grid-size': `${(gridSize / layout.width) * 100}%`,
-          '--layout-grid-opacity': `${gridOpacity}`,
-        } as CSSProperties}
-      >
-        {editorOptions.showPaperBounds ? (
-          <div
-            className="layout-editor__paper-guide"
-            style={{
-              left: `${(paperGuide.x / layout.width) * 100}%`,
-              top: `${(paperGuide.y / layout.height) * 100}%`,
-              width: `${(paperGuide.width / layout.width) * 100}%`,
-              height: `${(paperGuide.height / layout.height) * 100}%`,
-            }}
-          >
-            <span className="layout-editor__paper-guide-label">{getA4PaperLabel(editorOptions.paperOrientation)}</span>
-          </div>
-        ) : null}
-
-        {layout.blocks.map((block) => {
-          const dragPosition = drag.getBlockPosition(block);
-          const resizeRect = resize.getBlockRect(block);
-          const isResizing = block.id === resize.resizingBlockId;
-          const position = isResizing ? resizeRect : { ...resizeRect, ...dragPosition };
-          const isSelected = block.id === selectedBlockId;
-
-          return (
+      <div className="layout-editor__surface-frame">
+        <span className="layout-editor__surface-label">Текущий лист · 4:3 · {layout.width} × {layout.height}</span>
+        <div
+          ref={surfaceRef}
+          className="layout-editor__surface"
+          onContextMenu={handleSurfaceContextMenu}
+          style={{
+            '--layout-grid-size': `${(gridSize / layout.width) * 100}%`,
+            '--layout-grid-opacity': `${gridOpacity}`,
+          } as CSSProperties}
+        >
+          {editorOptions.showPaperBounds ? (
             <div
-              key={block.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`${block.name ?? block.type}. ${getBlockTypeLabel(block.type)}`}
-              onPointerDown={(event) => drag.handlePointerDown(event, block)}
-              onClick={() => onSelectBlock(block.id)}
-              onKeyDown={(event) => handleBlockKeyDown(event, block.id)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onSelectBlock(block.id);
-              }}
-              className={clsx(
-                'layout-editor__block',
-                canDirectEdit && 'layout-editor__block--draggable',
-                isSelected && 'layout-editor__block--active',
-                block.id === drag.draggingBlockId && 'layout-editor__block--dragging',
-                isResizing && 'layout-editor__block--resizing',
-              )}
+              className="layout-editor__paper-guide"
               style={{
-                left: `${(position.x / layout.width) * 100}%`,
-                top: `${(position.y / layout.height) * 100}%`,
-                width: `${(position.width / layout.width) * 100}%`,
-                height: `${(position.height / layout.height) * 100}%`,
-                borderRadius: `${Math.max(4, block.radius.topLeft * 0.18)}px ${Math.max(4, block.radius.topRight * 0.18)}px ${Math.max(4, block.radius.bottomRight * 0.18)}px ${Math.max(4, block.radius.bottomLeft * 0.18)}px`,
-                borderWidth: `${Math.max(1, block.border.width)}px`,
-                borderColor: block.border.color,
-                borderStyle: block.border.style,
-                background: block.backgroundColor,
-                opacity: block.opacity ?? 1,
+                left: `${(paperGuide.x / layout.width) * 100}%`,
+                top: `${(paperGuide.y / layout.height) * 100}%`,
+                width: `${(paperGuide.width / layout.width) * 100}%`,
+                height: `${(paperGuide.height / layout.height) * 100}%`,
               }}
             >
-              <div className="layout-editor__block-label">
-                <strong>{block.name ?? block.type}</strong>
-                <span>{getBlockTypeLabel(block.type)}</span>
-              </div>
-
-              {isSelected && canDirectEdit ? (
-                <button
-                  type="button"
-                  className="layout-editor__block-delete"
-                  aria-label={`Удалить ${block.name ?? 'окно'}`}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    deleteBlock(block.id);
-                  }}
-                >
-                  ×
-                </button>
-              ) : null}
-
-              {isSelected && canDirectEdit && !block.locked ? RESIZE_HANDLES.map((handle) => (
-                <span
-                  key={handle}
-                  className={`layout-editor__resize-handle layout-editor__resize-handle--${handle}`}
-                  onPointerDown={(event) => resize.handlePointerDown(event, block, handle)}
-                  aria-hidden="true"
-                />
-              )) : null}
+              <span className="layout-editor__paper-guide-label">{getA4PaperLabel(editorOptions.paperOrientation)}</span>
             </div>
-          );
-        })}
+          ) : null}
+
+          {layout.blocks.map((block) => {
+            const dragPosition = drag.getBlockPosition(block);
+            const resizeRect = resize.getBlockRect(block);
+            const isResizing = block.id === resize.resizingBlockId;
+            const position = isResizing ? resizeRect : { ...resizeRect, ...dragPosition };
+            const isSelected = block.id === selectedBlockId;
+
+            return (
+              <div
+                key={block.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${block.name ?? block.type}. ${getBlockTypeLabel(block.type)}`}
+                aria-pressed={isSelected}
+                onPointerDown={(event) => drag.handlePointerDown(event, block)}
+                onClick={() => onSelectBlock(block.id)}
+                onFocus={() => onSelectBlock(block.id)}
+                onKeyDown={(event) => handleBlockKeyDown(event, block.id)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onSelectBlock(block.id);
+                }}
+                className={clsx(
+                  'layout-editor__block',
+                  canDirectEdit && 'layout-editor__block--draggable',
+                  isSelected && 'layout-editor__block--active',
+                  block.id === drag.draggingBlockId && 'layout-editor__block--dragging',
+                  isResizing && 'layout-editor__block--resizing',
+                  block.locked && 'layout-editor__block--locked',
+                )}
+                style={{
+                  left: `${(position.x / layout.width) * 100}%`,
+                  top: `${(position.y / layout.height) * 100}%`,
+                  width: `${(position.width / layout.width) * 100}%`,
+                  height: `${(position.height / layout.height) * 100}%`,
+                  borderRadius: `${Math.max(4, block.radius.topLeft * 0.18)}px ${Math.max(4, block.radius.topRight * 0.18)}px ${Math.max(4, block.radius.bottomRight * 0.18)}px ${Math.max(4, block.radius.bottomLeft * 0.18)}px`,
+                  borderWidth: `${Math.max(1, block.border.width)}px`,
+                  borderColor: block.border.color,
+                  borderStyle: block.border.style,
+                  background: block.backgroundColor,
+                  opacity: block.opacity ?? 1,
+                }}
+              >
+                <div className="layout-editor__block-label">
+                  <strong>{block.name ?? block.type}</strong>
+                  <span>{getBlockTypeLabel(block.type)}</span>
+                </div>
+
+                {isSelected && canDirectEdit && !block.locked ? (
+                  <button
+                    type="button"
+                    className="layout-editor__block-delete"
+                    aria-label={`Удалить ${block.name ?? 'окно'}`}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      deleteBlock(block.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                ) : null}
+
+                {isSelected && canDirectEdit && !block.locked ? RESIZE_HANDLES.map((handle) => (
+                  <span
+                    key={handle}
+                    className={`layout-editor__resize-handle layout-editor__resize-handle--${handle}`}
+                    onPointerDown={(event) => resize.handlePointerDown(event, block, handle)}
+                    aria-hidden="true"
+                  />
+                )) : null}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {contextMenu ? (

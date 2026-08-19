@@ -14,13 +14,10 @@ interface ResizeState extends LayoutBlockRect {
   startClientX: number;
   startClientY: number;
   startRect: LayoutBlockRect;
+  moved: boolean;
 }
 
-function resizeRect(
-  state: ResizeState,
-  deltaX: number,
-  deltaY: number,
-): LayoutBlockRect {
+function resizeRect(state: ResizeState, deltaX: number, deltaY: number): LayoutBlockRect {
   const { handle, startRect } = state;
   let { x, y, width, height } = startRect;
 
@@ -95,10 +92,15 @@ export function useLayoutBlockResize({
       }
 
       const surfaceRect = surface.getBoundingClientRect();
+      const pointerDistance = Math.hypot(event.clientX - active.startClientX, event.clientY - active.startClientY);
       const deltaX = ((event.clientX - active.startClientX) / surfaceRect.width) * layout.width;
       const deltaY = ((event.clientY - active.startClientY) / surfaceRect.height) * layout.height;
       const constrained = constrainRectRef.current(active.block, resizeRect(active, deltaX, deltaY));
-      const nextResize = { ...active, ...constrained };
+      const nextResize = {
+        ...active,
+        ...constrained,
+        moved: active.moved || pointerDistance >= 3,
+      };
       resizeRef.current = nextResize;
       setResize(nextResize);
     }
@@ -109,12 +111,14 @@ export function useLayoutBlockResize({
         return;
       }
 
-      commitRef.current(active.blockId, {
-        x: active.x,
-        y: active.y,
-        width: active.width,
-        height: active.height,
-      });
+      if (active.moved) {
+        commitRef.current(active.blockId, {
+          x: active.x,
+          y: active.y,
+          width: active.width,
+          height: active.height,
+        });
+      }
       resizeRef.current = null;
       setResize(null);
     }
@@ -127,13 +131,23 @@ export function useLayoutBlockResize({
       setResize(null);
     }
 
+    function cancelOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      resizeRef.current = null;
+      setResize(null);
+    }
+
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', finishResize);
     window.addEventListener('pointercancel', cancelResize);
+    window.addEventListener('keydown', cancelOnEscape);
     return () => {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', finishResize);
       window.removeEventListener('pointercancel', cancelResize);
+      window.removeEventListener('keydown', cancelOnEscape);
     };
   }, [layout.height, layout.width, resize?.pointerId, surfaceRef]);
 
@@ -159,6 +173,7 @@ export function useLayoutBlockResize({
       startClientX: event.clientX,
       startClientY: event.clientY,
       startRect,
+      moved: false,
       ...startRect,
     };
     resizeRef.current = nextResize;
