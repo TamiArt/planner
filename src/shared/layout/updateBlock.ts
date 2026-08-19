@@ -41,6 +41,14 @@ function clampBlockToCanvas(block: LayoutBlock, layout: PageLayout): LayoutBlock
   };
 }
 
+function shouldResolveCollisions(options?: { snapToGrid?: boolean; resolveCollisions?: boolean }) {
+  if (typeof options?.resolveCollisions === 'boolean') {
+    return options.resolveCollisions;
+  }
+
+  return options?.snapToGrid !== false;
+}
+
 export function constrainBlockPosition(
   layout: PageLayout,
   block: LayoutBlock,
@@ -156,7 +164,7 @@ export function updateBlockPosition(
   };
 
   return touchLayout(
-    options?.resolveCollisions === false ? nextLayout : normalizeLayoutGeometry(nextLayout),
+    shouldResolveCollisions(options) ? normalizeLayoutGeometry(nextLayout) : nextLayout,
   );
 }
 
@@ -212,7 +220,7 @@ export function updateBlockRect(
   };
 
   return touchLayout(
-    options?.resolveCollisions === false ? nextLayout : normalizeLayoutGeometry(nextLayout),
+    shouldResolveCollisions(options) ? normalizeLayoutGeometry(nextLayout) : nextLayout,
   );
 }
 
