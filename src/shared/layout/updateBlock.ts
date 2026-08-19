@@ -220,7 +220,7 @@ export function updateBlockSize(
   layout: PageLayout,
   blockId: string,
   size: { width: number; height: number },
-  options?: { snapToGrid?: boolean },
+  options?: { snapToGrid?: boolean; resolveCollisions?: boolean },
 ) {
   const targetBlock = layout.blocks.find((block) => block.id === blockId);
   if (!targetBlock) {
