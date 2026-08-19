@@ -6,6 +6,7 @@ import {
   removeLayoutBlock,
   updateLayoutBlockContent,
 } from '../src/modules/layout-editor/model/blockOperations';
+import { getBlockSelectionAfterRemoval } from '../src/modules/layout-editor/model/layoutSelection';
 import { normalizePlannerLayouts } from '../src/modules/layout-editor/model/normalizeLayouts';
 import { buildPlannerRenderModel } from '../src/core/render-model/buildPlannerRenderModel';
 import { createDefaultPlannerConfig } from '../src/lib/config/defaultPlannerConfig';
@@ -96,7 +97,6 @@ test('updates custom content immutably', () => {
   assert.equal(updated.blocks[0].name, 'Планы');
   assert.equal(updated.blocks[0].meta?.content, 'Главная цель');
   assert.equal(layout.blocks[0].name, undefined);
-
 });
 
 test('renders custom month text content through the shared render model', () => {
@@ -150,4 +150,25 @@ test('direct resize can preserve deliberate overlaps', () => {
   assert.equal(result.blocks[0].width, 1216);
   assert.equal(result.blocks[1].x, 896);
   assert.equal(result.blocks[1].y, 320);
+});
+
+test('locked blocks cannot be moved, resized or removed through shared operations', () => {
+  const layout = createLayout();
+  layout.blocks[0] = { ...layout.blocks[0], locked: true };
+
+  assert.equal(updateBlockPosition(layout, 'existing', { x: 640, y: 640 }), layout);
+  assert.equal(updateBlockRect(layout, 'existing', { x: 64, y: 64, width: 480, height: 480 }), layout);
+  assert.equal(removeLayoutBlock(layout, 'existing'), layout);
+});
+
+test('selects the nearest remaining block after removal', () => {
+  const layout = createLayout();
+  layout.blocks.push(
+    { ...layout.blocks[0], id: 'second', x: 960 },
+    { ...layout.blocks[0], id: 'third', x: 1280 },
+  );
+
+  assert.equal(getBlockSelectionAfterRemoval(layout, 'second'), 'third');
+  assert.equal(getBlockSelectionAfterRemoval(layout, 'third'), 'second');
+  assert.equal(getBlockSelectionAfterRemoval(createLayout(), 'existing'), '');
 });
