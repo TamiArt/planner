@@ -84,6 +84,11 @@ export function addMonthLayoutBlockAt(
 }
 
 export function removeLayoutBlock(layout: PageLayout, blockId: string) {
+  const targetBlock = layout.blocks.find((block) => block.id === blockId);
+  if (!targetBlock || targetBlock.locked) {
+    return layout;
+  }
+
   return {
     ...layout,
     updatedAt: new Date().toISOString(),
