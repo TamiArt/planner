@@ -12,6 +12,7 @@ import { useLayoutBlockDrag } from '../hooks/useLayoutBlockDrag';
 import { useLayoutBlockResize, type LayoutResizeHandle } from '../hooks/useLayoutBlockResize';
 import { getBlockTypeLabel, MONTH_BLOCK_OPTIONS, type AddableMonthBlockType } from '../model/blockCatalog';
 import { addMonthLayoutBlockAt, removeLayoutBlock } from '../model/blockOperations';
+import { getBlockSelectionAfterRemoval } from '../model/layoutSelection';
 import { getA4GuideRect, getA4PaperLabel, type LayoutPaperOrientation } from '../model/pageGuide';
 import { normalizePlannerLayouts } from '../model/normalizeLayouts';
 
@@ -107,11 +108,8 @@ export function LayoutCanvas({
       return;
     }
 
-    const blockIndex = layout.blocks.findIndex((item) => item.id === blockId);
+    const nextSelectedBlockId = getBlockSelectionAfterRemoval(layout, blockId);
     const nextLayout = removeLayoutBlock(layout, blockId);
-    const nextSelectedBlockId = nextLayout.blocks[Math.min(blockIndex, nextLayout.blocks.length - 1)]?.id
-      ?? nextLayout.blocks[0]?.id
-      ?? '';
     commitLayout(nextLayout, nextSelectedBlockId);
   }
 
