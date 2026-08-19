@@ -10,7 +10,13 @@ import { getBlockSelectionAfterRemoval } from '../src/modules/layout-editor/mode
 import { normalizePlannerLayouts } from '../src/modules/layout-editor/model/normalizeLayouts';
 import { buildPlannerRenderModel } from '../src/core/render-model/buildPlannerRenderModel';
 import { createDefaultPlannerConfig } from '../src/lib/config/defaultPlannerConfig';
-import { constrainBlockPosition, constrainBlockRect, updateBlockPosition, updateBlockRect } from '../src/shared/layout/updateBlock';
+import {
+  constrainBlockPosition,
+  constrainBlockRect,
+  updateBlockPosition,
+  updateBlockRect,
+  updateBlockSize,
+} from '../src/shared/layout/updateBlock';
 import type { PageLayout } from '../src/shared/layout/types';
 
 function createLayout(): PageLayout {
@@ -171,4 +177,17 @@ test('selects the nearest remaining block after removal', () => {
   assert.equal(getBlockSelectionAfterRemoval(layout, 'second'), 'third');
   assert.equal(getBlockSelectionAfterRemoval(layout, 'third'), 'second');
   assert.equal(getBlockSelectionAfterRemoval(createLayout(), 'existing'), '');
+});
+
+test('numeric inspector geometry preserves intentional overlaps when snap is disabled', () => {
+  const layout = createLayout();
+  layout.blocks.push({ ...layout.blocks[0], id: 'second', x: 900 });
+
+  const moved = updateBlockPosition(layout, 'existing', { x: 900, y: 320 }, { snapToGrid: false });
+  assert.equal(moved.blocks[0].x, 900);
+  assert.equal(moved.blocks[1].x, 900);
+
+  const resized = updateBlockSize(layout, 'existing', { width: 1000, height: 736 }, { snapToGrid: false });
+  assert.equal(resized.blocks[0].width, 1000);
+  assert.equal(resized.blocks[1].x, 900);
 });
