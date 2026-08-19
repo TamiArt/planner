@@ -160,26 +160,77 @@ export function updateBlockPosition(
   );
 }
 
+export interface LayoutBlockRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function constrainBlockRect(
+  layout: PageLayout,
+  block: LayoutBlock,
+  rect: LayoutBlockRect,
+  options?: { snapToGrid?: boolean },
+): LayoutBlockRect {
+  const shouldSnapToGrid = options?.snapToGrid ?? true;
+  const nextBlock = clampBlockToCanvas({
+    ...block,
+    x: shouldSnapToGrid ? snapToGrid(rect.x, layout.grid) : Math.round(rect.x),
+    y: shouldSnapToGrid ? snapToGrid(rect.y, layout.grid) : Math.round(rect.y),
+    width: Math.max(MIN_BLOCK_SIZE, shouldSnapToGrid ? snapToGrid(rect.width, layout.grid) : Math.round(rect.width)),
+    height: Math.max(MIN_BLOCK_SIZE, shouldSnapToGrid ? snapToGrid(rect.height, layout.grid) : Math.round(rect.height)),
+  }, layout);
+
+  return {
+    x: nextBlock.x,
+    y: nextBlock.y,
+    width: nextBlock.width,
+    height: nextBlock.height,
+  };
+}
+
+export function updateBlockRect(
+  layout: PageLayout,
+  blockId: string,
+  rect: LayoutBlockRect,
+  options?: { snapToGrid?: boolean; resolveCollisions?: boolean },
+) {
+  const targetBlock = layout.blocks.find((block) => block.id === blockId);
+  if (!targetBlock) {
+    return layout;
+  }
+
+  const constrainedRect = constrainBlockRect(layout, targetBlock, rect, options);
+  const nextLayout = {
+    ...layout,
+    blocks: layout.blocks.map((block) => (
+      block.id === blockId
+        ? { ...block, ...constrainedRect }
+        : block
+    )),
+  };
+
+  return touchLayout(
+    options?.resolveCollisions === false ? nextLayout : normalizeLayoutGeometry(nextLayout),
+  );
+}
+
 export function updateBlockSize(
   layout: PageLayout,
   blockId: string,
   size: { width: number; height: number },
   options?: { snapToGrid?: boolean },
 ) {
-  const shouldSnapToGrid = options?.snapToGrid ?? true;
+  const targetBlock = layout.blocks.find((block) => block.id === blockId);
+  if (!targetBlock) {
+    return layout;
+  }
 
-  return touchLayout(
-    normalizeLayoutGeometry({
-      ...layout,
-      blocks: layout.blocks.map((block) => (
-        block.id === blockId
-          ? {
-              ...block,
-              width: Math.max(MIN_BLOCK_SIZE, shouldSnapToGrid ? snapToGrid(size.width, layout.grid) : Math.round(size.width)),
-              height: Math.max(MIN_BLOCK_SIZE, shouldSnapToGrid ? snapToGrid(size.height, layout.grid) : Math.round(size.height)),
-            }
-          : block
-      )),
-    }),
-  );
+  return updateBlockRect(layout, blockId, {
+    x: targetBlock.x,
+    y: targetBlock.y,
+    width: size.width,
+    height: size.height,
+  }, options);
 }

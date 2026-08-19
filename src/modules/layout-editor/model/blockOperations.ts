@@ -1,4 +1,5 @@
 import {
+  constrainBlockPosition,
   createBlock,
   LAYOUT_CONTENT_RIGHT_GUTTER,
   snapToGrid,
@@ -34,19 +35,27 @@ function findFreePosition(layout: PageLayout, width: number, height: number) {
   return { x: snapToGrid(120, layout.grid), y: snapToGrid(320, layout.grid) };
 }
 
-export function addMonthLayoutBlock(layout: PageLayout, type: AddableMonthBlockType) {
+function createMonthLayoutBlock(
+  layout: PageLayout,
+  type: AddableMonthBlockType,
+  requestedPosition?: { x: number; y: number },
+) {
   const preset = getMonthBlockPreset(type);
   const width = snapToGrid(Math.min(preset.width, layout.width - LAYOUT_CONTENT_RIGHT_GUTTER), layout.grid);
   const height = snapToGrid(Math.min(preset.height, layout.height), layout.grid);
-  const position = findFreePosition(layout, width, height);
-  const block = createBlock({
+  const fallbackPosition = findFreePosition(layout, width, height);
+  const draftBlock = createBlock({
     type: type as LayoutBlockType,
     name: preset.label,
-    ...position,
+    ...(requestedPosition ?? fallbackPosition),
     width,
     height,
     meta: { userAdded: true },
   });
+  const position = requestedPosition
+    ? constrainBlockPosition(layout, draftBlock, requestedPosition)
+    : fallbackPosition;
+  const block = { ...draftBlock, ...position };
 
   return {
     layout: {
@@ -56,6 +65,22 @@ export function addMonthLayoutBlock(layout: PageLayout, type: AddableMonthBlockT
     },
     block,
   };
+}
+
+export function addMonthLayoutBlock(layout: PageLayout, type: AddableMonthBlockType) {
+  return createMonthLayoutBlock(layout, type);
+}
+
+export function addMonthLayoutBlockAt(
+  layout: PageLayout,
+  type: AddableMonthBlockType,
+  point: { x: number; y: number },
+) {
+  const preset = getMonthBlockPreset(type);
+  return createMonthLayoutBlock(layout, type, {
+    x: point.x - preset.width / 2,
+    y: point.y - preset.height / 2,
+  });
 }
 
 export function removeLayoutBlock(layout: PageLayout, blockId: string) {
