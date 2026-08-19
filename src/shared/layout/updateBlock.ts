@@ -141,7 +141,7 @@ export function updateBlockPosition(
   options?: { snapToGrid?: boolean; resolveCollisions?: boolean },
 ) {
   const targetBlock = layout.blocks.find((block) => block.id === blockId);
-  if (!targetBlock) {
+  if (!targetBlock || targetBlock.locked) {
     return layout;
   }
 
@@ -197,7 +197,7 @@ export function updateBlockRect(
   options?: { snapToGrid?: boolean; resolveCollisions?: boolean },
 ) {
   const targetBlock = layout.blocks.find((block) => block.id === blockId);
-  if (!targetBlock) {
+  if (!targetBlock || targetBlock.locked) {
     return layout;
   }
 
