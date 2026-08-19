@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import type { ChangeEventHandler, ReactNode, RefObject } from 'react';
+import type { ChangeEventHandler, MutableRefObject, ReactNode } from 'react';
 import { Panel } from '../Panel';
 import { PlannerRenderPreviewPanel } from '../PlannerRenderPreviewPanel';
 import { PreviewPanel } from '../PreviewPanel';
@@ -13,6 +13,7 @@ import type { PlannerConfig, PlannerSectionType } from '../../types/planner';
 
 type PlannerPlan = ReturnType<typeof buildPlannerPlan>;
 type WorkflowStep = (typeof WORKFLOW_STEPS)[number];
+type InputRef = MutableRefObject<HTMLInputElement | null>;
 
 interface BuilderWorkflowShellProps {
   config: PlannerConfig;
@@ -38,18 +39,24 @@ interface BuilderWorkflowShellProps {
   onPdfExport: () => void;
   onReset: () => void;
   onFooterPrimaryAction: () => void;
-  fileInputRef: RefObject<HTMLInputElement | null>;
-  backgroundInputRef: RefObject<HTMLInputElement | null>;
-  coverInputRef: RefObject<HTMLInputElement | null>;
-  pageBackgroundInputRef: RefObject<HTMLInputElement | null>;
-  autoStickerInputRef: RefObject<HTMLInputElement | null>;
-  readySheetInputRef: RefObject<HTMLInputElement | null>;
+  fileInputRef: InputRef;
+  backgroundInputRef: InputRef;
+  coverInputRef: InputRef;
+  pageBackgroundInputRef: InputRef;
+  autoStickerInputRef: InputRef;
+  readySheetInputRef: InputRef;
   onImportChange: ChangeEventHandler<HTMLInputElement>;
   onBackgroundUploadChange: ChangeEventHandler<HTMLInputElement>;
   onCoverUploadChange: ChangeEventHandler<HTMLInputElement>;
   onPageBackgroundUploadChange: ChangeEventHandler<HTMLInputElement>;
   onAutoStickerUploadChange: ChangeEventHandler<HTMLInputElement>;
   onReadySheetUploadChange: ChangeEventHandler<HTMLInputElement>;
+}
+
+function bindInputRef(ref: InputRef) {
+  return (node: HTMLInputElement | null) => {
+    ref.current = node;
+  };
 }
 
 export function BuilderWorkflowShell({
@@ -171,12 +178,12 @@ export function BuilderWorkflowShell({
         ) : null}
       </section>
 
-      <input ref={fileInputRef} type="file" accept="application/json" onChange={onImportChange} className="hidden-input" />
-      <input ref={backgroundInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={onBackgroundUploadChange} className="hidden-input" />
-      <input ref={coverInputRef} type="file" accept="image/png,.png" onChange={onCoverUploadChange} className="hidden-input" />
-      <input ref={pageBackgroundInputRef} type="file" accept="image/png,.png" onChange={onPageBackgroundUploadChange} className="hidden-input" />
-      <input ref={autoStickerInputRef} type="file" accept="image/png" multiple onChange={onAutoStickerUploadChange} className="hidden-input" />
-      <input ref={readySheetInputRef} type="file" accept="image/png" multiple onChange={onReadySheetUploadChange} className="hidden-input" />
+      <input ref={bindInputRef(fileInputRef)} type="file" accept="application/json" onChange={onImportChange} className="hidden-input" />
+      <input ref={bindInputRef(backgroundInputRef)} type="file" accept="image/png,image/jpeg,image/webp" onChange={onBackgroundUploadChange} className="hidden-input" />
+      <input ref={bindInputRef(coverInputRef)} type="file" accept="image/png,.png" onChange={onCoverUploadChange} className="hidden-input" />
+      <input ref={bindInputRef(pageBackgroundInputRef)} type="file" accept="image/png,.png" onChange={onPageBackgroundUploadChange} className="hidden-input" />
+      <input ref={bindInputRef(autoStickerInputRef)} type="file" accept="image/png" multiple onChange={onAutoStickerUploadChange} className="hidden-input" />
+      <input ref={bindInputRef(readySheetInputRef)} type="file" accept="image/png" multiple onChange={onReadySheetUploadChange} className="hidden-input" />
     </main>
   );
 }
