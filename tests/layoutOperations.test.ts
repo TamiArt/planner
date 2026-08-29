@@ -2,13 +2,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   addMonthLayoutBlock,
+  addMonthLayoutBlockAt,
   removeLayoutBlock,
   updateLayoutBlockContent,
 } from '../src/modules/layout-editor/model/blockOperations';
+import { getBlockSelectionAfterRemoval } from '../src/modules/layout-editor/model/layoutSelection';
 import { normalizePlannerLayouts } from '../src/modules/layout-editor/model/normalizeLayouts';
 import { buildPlannerRenderModel } from '../src/core/render-model/buildPlannerRenderModel';
 import { createDefaultPlannerConfig } from '../src/lib/config/defaultPlannerConfig';
-import { constrainBlockPosition, updateBlockPosition } from '../src/shared/layout/updateBlock';
+import {
+  constrainBlockPosition,
+  constrainBlockRect,
+  updateBlockPosition,
+  updateBlockRect,
+  updateBlockSize,
+} from '../src/shared/layout/updateBlock';
 import type { PageLayout } from '../src/shared/layout/types';
 
 function createLayout(): PageLayout {
@@ -95,7 +103,6 @@ test('updates custom content immutably', () => {
   assert.equal(updated.blocks[0].name, 'Планы');
   assert.equal(updated.blocks[0].meta?.content, 'Главная цель');
   assert.equal(layout.blocks[0].name, undefined);
-
 });
 
 test('renders custom month text content through the shared render model', () => {
@@ -109,4 +116,78 @@ test('renders custom month text content through the shared render model', () => 
   const monthPage = model.pages.find((page) => page.page.kind === 'month');
   assert.ok(monthPage);
   assert.ok(monthPage.nodes.some((node) => node.kind === 'text' && node.lines.includes('Важная цель месяца')));
+});
+
+test('adds a month block at the requested grid point and keeps it inside the editable area', () => {
+  const layout = createLayout();
+  const result = addMonthLayoutBlockAt(layout, 'text', { x: 1900, y: 1500 });
+
+  assert.equal(result.block.type, 'text');
+  assert.equal(result.block.x % 32, 0);
+  assert.equal(result.block.y % 32, 0);
+  assert.ok(result.block.x + result.block.width <= layout.width - 248);
+  assert.ok(result.block.y + result.block.height <= layout.height);
+});
+
+test('constrains direct resize geometry to grid and canvas bounds', () => {
+  const layout = createLayout();
+  const block = layout.blocks[0];
+  const rect = constrainBlockRect(layout, block, {
+    x: -300,
+    y: -100,
+    width: 4000,
+    height: 2000,
+  });
+
+  assert.deepEqual(rect, { x: 0, y: 0, width: 1800, height: 1536 });
+});
+
+test('direct resize can preserve deliberate overlaps', () => {
+  const layout = createLayout();
+  layout.blocks.push({ ...layout.blocks[0], id: 'second', x: 896 });
+
+  const result = updateBlockRect(layout, 'existing', {
+    x: 128,
+    y: 320,
+    width: 1200,
+    height: 736,
+  }, { resolveCollisions: false });
+
+  assert.equal(result.blocks[0].width, 1216);
+  assert.equal(result.blocks[1].x, 896);
+  assert.equal(result.blocks[1].y, 320);
+});
+
+test('locked blocks cannot be moved, resized or removed through shared operations', () => {
+  const layout = createLayout();
+  layout.blocks[0] = { ...layout.blocks[0], locked: true };
+
+  assert.equal(updateBlockPosition(layout, 'existing', { x: 640, y: 640 }), layout);
+  assert.equal(updateBlockRect(layout, 'existing', { x: 64, y: 64, width: 480, height: 480 }), layout);
+  assert.equal(removeLayoutBlock(layout, 'existing'), layout);
+});
+
+test('selects the nearest remaining block after removal', () => {
+  const layout = createLayout();
+  layout.blocks.push(
+    { ...layout.blocks[0], id: 'second', x: 960 },
+    { ...layout.blocks[0], id: 'third', x: 1280 },
+  );
+
+  assert.equal(getBlockSelectionAfterRemoval(layout, 'second'), 'third');
+  assert.equal(getBlockSelectionAfterRemoval(layout, 'third'), 'second');
+  assert.equal(getBlockSelectionAfterRemoval(createLayout(), 'existing'), '');
+});
+
+test('numeric inspector geometry preserves intentional overlaps when snap is disabled', () => {
+  const layout = createLayout();
+  layout.blocks.push({ ...layout.blocks[0], id: 'second', x: 900 });
+
+  const moved = updateBlockPosition(layout, 'existing', { x: 900, y: 320 }, { snapToGrid: false });
+  assert.equal(moved.blocks[0].x, 900);
+  assert.equal(moved.blocks[1].x, 900);
+
+  const resized = updateBlockSize(layout, 'existing', { width: 1000, height: 736 }, { snapToGrid: false });
+  assert.equal(resized.blocks[0].width, 1000);
+  assert.equal(resized.blocks[1].x, 900);
 });

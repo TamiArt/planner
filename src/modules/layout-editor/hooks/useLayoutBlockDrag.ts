@@ -107,7 +107,7 @@ export function useLayoutBlockDrag({
     };
   }, [drag?.pointerId, layout.height, layout.width, surfaceRef]);
 
-  function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>, block: LayoutBlock) {
+  function handlePointerDown(event: ReactPointerEvent<HTMLElement>, block: LayoutBlock) {
     if (!enabled || event.button !== 0 || block.locked) {
       return;
     }
